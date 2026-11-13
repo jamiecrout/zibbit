@@ -1,0 +1,7 @@
+build/
+*.apk
+*.idsig
+*.keystore
+*.jks
+res/mipmap-*dpi/
+icon_preview.png

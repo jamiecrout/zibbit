@@ -1,0 +1,2128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0c1118">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zibbit">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="icon" type="image/png" href="/icons/favicon-64.png">
+<title>Zibbit</title>
+<style>
+:root{
+  --ink:#0c1118; --panel:#131a24; --raised:#1b2432; --line:#28334a;
+  --text:#e8ecf3; --mute:#8996ad; --tally:#ff4a3d; --warn:#ffb454;
+  --cond:"Roboto Condensed","Arial Narrow","Helvetica Neue Condensed","sans-serif-condensed",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--text);font:16px/1.35 var(--body);touch-action:manipulation}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #9ec5ff;outline-offset:2px}
+[hidden]{display:none!important}
+
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+
+/* header */
+#top{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+.seg{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--ink)}
+.seg button{min-height:42px;min-width:92px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:var(--mute);font:600 17px var(--cond);letter-spacing:.2px}
+.seg button[aria-pressed="true"]{background:var(--text);color:var(--ink)}
+#status{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.lamp{flex:none;width:16px;height:16px;border-radius:50%;background:#38435a;box-shadow:inset 0 0 0 2px #2a3446}
+.lamp.on{background:var(--tally);box-shadow:0 0 0 3px rgba(255,74,61,.22),0 0 16px 3px rgba(255,74,61,.65)}
+.lamp.warn{background:var(--warn);box-shadow:0 0 0 3px rgba(255,180,84,.2)}
+#statusText{font:600 16px var(--cond);white-space:nowrap}
+#statusSub{color:var(--mute);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iconbtn{flex:none;width:48px;height:48px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font-size:22px;line-height:1}
+
+/* many providers: the switcher scrolls sideways instead of pushing the status off screen */
+#providers{flex:0 1 auto;min-width:0;max-width:62%;overflow-x:auto;scrollbar-width:none}
+#providers::-webkit-scrollbar{display:none}
+.seg button{flex:none;white-space:nowrap}
+
+/* stage: video + now playing */
+#stage{flex:none;background:var(--panel);border-bottom:1px solid var(--line)}
+#screen{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+#video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
+#overlay{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:6px;padding:16px;text-align:center;background:rgba(6,9,13,.78)}
+#overlay strong{font:600 22px var(--cond)}
+#overlay span{color:var(--mute);max-width:34ch}
+#overlay{pointer-events:none}
+#overlay .btn{pointer-events:auto;margin-top:10px}
+.spin{width:30px;height:30px;border-radius:50%;border:3px solid #34405a;border-top-color:var(--text);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:#34405a;border-right-color:var(--text)}}
+
+#now{padding:10px 12px 12px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+#nowTop{display:flex;align-items:center;gap:12px;min-width:0}
+#nowLogo{flex:none;width:52px;height:52px;border-radius:10px;background:var(--raised);display:grid;place-items:center;overflow:hidden;font:600 18px var(--cond);color:var(--mute)}
+#nowLogo img{width:100%;height:100%;object-fit:contain}
+#nowText{flex:1;min-width:0}
+#nowName{font:700 24px/1.1 var(--cond);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nowProg{color:var(--mute);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#btnPlay{flex:none;min-width:112px;min-height:52px;padding:0 20px;border:0;border-radius:12px;font:700 19px var(--cond);background:var(--tally);color:#fff}
+#btnLive{flex:none;min-height:52px;padding:0 18px;border:2px solid var(--text);border-radius:12px;font:700 19px var(--cond);background:transparent;color:var(--text)}
+#btnPlay.resume{background:var(--text);color:var(--ink)}
+#busySheet .dbody{padding:14px 16px 16px}
+#busyMsg{margin:0 0 14px;line-height:1.45}
+#busyBtns{display:grid;gap:10px}
+#acctName{display:block;margin-bottom:8px}
+#bar{height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:var(--text)}
+
+/* browser */
+#browser{flex:1;min-height:0;display:flex;flex-direction:column}
+#tabs{display:flex;flex:none;border-bottom:1px solid var(--line);background:var(--panel)}
+#tabs button{flex:1;min-height:52px;border:0;background:transparent;color:var(--mute);font:600 18px var(--cond);border-bottom:3px solid transparent}
+#tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--text)}
+#toolbar{display:flex;gap:8px;padding:8px 12px;flex:none}
+#groupBtn,#vodCatBtn{flex:0 1 46%;min-width:0;min-height:50px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:12px;background:var(--raised);text-align:left;font:600 17px var(--cond)}
+#groupBtn span:first-child,#vodCatBtn span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#search,#vodSearch{flex:1;min-width:0;min-height:50px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--ink)}
+#search::placeholder,#vodSearch::placeholder{color:var(--mute)}
+#countRow{display:flex;align-items:center;gap:8px;padding:0 10px 4px 0;flex:none}
+#count{flex:1;min-width:0;padding:2px 14px 6px;color:var(--mute);font-size:14px}
+#editBar{display:flex;gap:8px;flex:none}
+.btn.sm{min-height:38px;padding:0 12px;font-size:15px}
+#btnEdit[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+#grid.editing{width:100%!important}
+#grid.editing #timebar,#grid.editing #nowline{display:none}
+.ctl{position:absolute;left:var(--L);right:0;top:0;bottom:0;display:flex;align-items:center;gap:6px;padding:0 8px 0 10px;overflow:hidden}
+.ctl button{flex:none;min-width:46px;height:46px;padding:0 8px;border:1px solid var(--line);border-radius:11px;background:var(--raised);font:700 16px var(--cond)}
+.ctl button:disabled{opacity:.35}
+@media(max-width:520px){.ctl{gap:4px;padding:0 6px}.ctl button{min-width:40px;padding:0 6px;font-size:15px}.ctl .bot{font-size:14px}}
+.ctl .gone{margin-left:auto}
+.pick.static{cursor:default}
+.pick.static.tap{cursor:pointer}
+.pick.static.tap .nm{text-decoration:underline dotted;text-underline-offset:4px}
+#guideNow{min-height:3em}
+#hiddenList .opt{cursor:default}
+#listWrap{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;--L:150px}
+#grid{position:relative;min-width:100%}
+#grid[hidden]{display:none}
+#list{list-style:none;margin:0;padding:0}
+#timebar{position:sticky;top:0;z-index:4;height:30px;background:var(--ink);border-bottom:1px solid var(--line);font-size:13px;color:var(--mute)}
+#timebar .corner{position:sticky;left:0;z-index:2;width:var(--L);height:100%;background:var(--ink);border-right:1px solid var(--line)}
+#timebar .tk{position:absolute;top:0;height:100%;display:flex;align-items:center;padding-left:6px;border-left:1px solid var(--line);white-space:nowrap}
+#timebar .tk.hr{color:var(--text);font-weight:600}
+#nowline{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--tally);z-index:1;pointer-events:none}
+.row{position:relative;height:68px;border-bottom:1px solid var(--line)}
+.row.live{background:var(--raised);box-shadow:inset 5px 0 0 var(--tally)}
+.chan{position:sticky;left:0;z-index:3;display:flex;align-items:center;width:var(--L);height:100%;background:var(--ink);border-right:1px solid var(--line)}
+.row.live .chan{background:var(--raised)}
+.pick{display:flex;align-items:center;gap:8px;flex:1;min-width:0;height:100%;padding:0 2px 0 12px;border:0;background:transparent;text-align:left}
+.logo{flex:none;width:42px;height:42px;border-radius:9px;background:var(--raised);display:grid;place-items:center;overflow:hidden;font:600 15px var(--cond);color:var(--mute)}
+.logo img{width:100%;height:100%;object-fit:contain}
+.nm{font:600 16px/1.12 var(--cond);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.star{flex:none;width:36px;height:100%;border:0;background:transparent;font-size:22px;color:var(--mute)}
+.star[aria-pressed="true"]{color:var(--text)}
+.slots{position:absolute;top:0;bottom:0;left:var(--L);right:0}
+.pg{--off:0px;position:absolute;top:6px;bottom:6px;display:flex;flex-direction:column;justify-content:center;gap:1px;min-width:0;padding:0 9px 0 calc(9px + var(--off));border:1px solid var(--line);border-radius:9px;background:var(--raised);text-align:left;overflow:hidden;color:var(--text)}
+.pg b{font:600 15px/1.15 var(--cond);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg i{font-style:normal;font-size:12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg.cur{border-color:var(--text);box-shadow:inset 3px 0 0 var(--text)}
+.pg.none{background:transparent;border-style:dashed;color:var(--mute)}
+.pg.none b{font-weight:400}
+#msg{padding:28px 20px;display:grid;gap:10px;justify-items:start}
+#msg strong{font:700 22px var(--cond)}
+#msg p{margin:0;color:var(--mute);max-width:44ch}
+.btn{min-height:50px;padding:0 20px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font:700 18px var(--cond)}
+.btn.primary{background:var(--text);color:var(--ink);border-color:var(--text)}
+.btn:disabled{opacity:.45}
+
+/* manage */
+#paneManage{flex:1;min-height:0;display:flex;flex-direction:column}
+#manageTop{padding:10px 12px;display:grid;gap:8px;flex:none}
+#manageTop p{margin:0;color:var(--mute);font-size:15px}
+#manageTools{display:flex;gap:8px;flex-wrap:wrap}
+#manageTools input[type=search]{flex:1 1 200px;min-height:50px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--ink)}
+#manageTools .btn{min-height:50px;padding:0 14px;font-size:17px}
+#onlySel{display:flex;align-items:center;gap:8px;min-height:50px;color:var(--mute)}
+#manageBar{display:flex;align-items:center;gap:12px;padding:8px 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel);flex:none}
+#manageSummary{flex:1;font:600 17px var(--cond)}
+#cats{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.cat{display:flex;align-items:center;gap:14px;min-height:58px;padding:6px 14px;border-bottom:1px solid var(--line);content-visibility:auto;contain-intrinsic-size:auto 58px}
+.cat input{flex:none;width:26px;height:26px;accent-color:#e8ecf3}
+.cname{flex:1;min-width:0;font:600 18px var(--cond)}
+.ccount{flex:none;color:var(--mute);font-variant-numeric:tabular-nums}
+#manageFoot{padding:10px 12px;display:flex;align-items:center;gap:12px;flex:none;border-top:1px solid var(--line);color:var(--mute);font-size:14px}
+#manageFoot span{flex:1}
+
+/* dialogs */
+dialog{width:min(560px,94vw);max-height:84dvh;padding:0;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);overflow:hidden}
+dialog[open]{display:flex;flex-direction:column}
+dialog::backdrop{background:rgba(3,5,8,.7)}
+.dhead{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--line)}
+.dhead h2{margin:0;flex:1;font:700 22px var(--cond)}
+.dhead input{flex:1;min-width:0;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--ink)}
+#groupReorder[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+.opt.moving{cursor:default}
+.opt .mv{display:flex;gap:8px;flex:none}
+.opt .mv button{min-width:48px;min-height:48px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font:700 18px var(--cond)}
+.opt .mv button:disabled{opacity:.35}
+.dbody{overflow-y:auto;padding:0}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:58px;padding:8px 16px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left}
+.opt[aria-current="true"]{background:var(--raised);box-shadow:inset 5px 0 0 var(--text)}
+.opt .cname{font-size:19px}
+.field{display:grid;gap:6px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.field label{font:600 18px var(--cond)}
+.field small{color:var(--mute)}
+.field select{min-height:50px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--ink);width:100%;max-width:100%}
+
+/* forms + admin */
+.field input:not([type=checkbox]),.field textarea{min-height:50px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--ink);width:100%}
+.field textarea{padding:10px 12px;min-height:110px;resize:vertical;font:15px/1.4 ui-monospace,Consolas,monospace}
+.field.inline{display:flex;align-items:center;gap:12px}
+.field.inline input{width:26px;height:26px;min-height:0;accent-color:#e8ecf3;flex:none}
+.field.inline label{flex:1;font:600 18px var(--cond)}
+.field .msg{margin:0;padding:10px 12px;border-radius:12px;background:var(--raised);font-size:15px;line-height:1.4}
+.field .msg.bad{box-shadow:inset 4px 0 0 var(--warn)}
+.field .msg.good{box-shadow:inset 4px 0 0 #5bd18b}
+.arow{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);min-height:64px}
+.arow .at{flex:1;min-width:0}
+.arow .at b{display:block;font:600 19px var(--cond);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .at small{display:block;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .btn{min-height:44px;padding:0 14px;font-size:16px;flex:none}
+.arow .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:560px){.arow{flex-wrap:wrap}.arow .acts{width:100%;justify-content:flex-start}}
+#adminTabs{display:flex;flex:none;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto}
+#adminTabs button{flex:1 0 auto;min-height:52px;padding:0 12px;border:0;background:transparent;color:var(--mute);font:600 17px var(--cond);border-bottom:3px solid transparent;white-space:nowrap}
+.ahead{margin:22px 0 6px;font:700 20px var(--cond);color:var(--text)}
+.ahead:first-child{margin-top:14px}
+#adminTabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--text)}
+#adminSheet,#formSheet{height:min(760px,92dvh)}
+#pwSheet .dbody,#formSheet .dbody{padding:0}
+#pinBody{padding:18px 16px 22px;text-align:center}
+#pinDots{display:flex;justify-content:center;gap:16px;margin:6px 0 10px}
+#pinDots i{width:18px;height:18px;border-radius:50%;border:2px solid var(--mute)}
+#pinDots i.on{background:var(--text);border-color:var(--text)}
+#pinMsg{min-height:44px;margin:0 0 8px;color:var(--mute);font-size:16px}
+#pinMsg.bad{color:var(--warn)}
+#pinPad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:300px;margin:0 auto}
+#pinPad button{min-height:62px;border:1px solid var(--line);border-radius:14px;background:var(--raised);font:700 26px var(--cond)}
+#pinPad button:disabled{opacity:.4}
+.lockmark{margin-right:6px}
+.dfoot{display:flex;gap:10px;justify-content:flex-end;padding:12px;border-top:1px solid var(--line);flex-wrap:wrap}
+.dfoot .btn{flex:1 1 120px}
+.pill{display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:var(--raised);border:1px solid var(--line);color:var(--mute);font:600 13px var(--cond);vertical-align:middle}
+
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:92vw;padding:12px 18px;border-radius:12px;background:var(--text);color:var(--ink);font-weight:600;z-index:50}
+
+/* wide landscape: video left, browser right */
+@media (min-width:900px) and (orientation:landscape){
+  #app{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,1fr);grid-template-rows:auto 1fr}
+  #top{grid-column:1/3}
+  #stage{border-bottom:0;border-right:1px solid var(--line);overflow-y:auto}
+}
+
+/* Short screens (most phones, with the browser's own bars showing): the fixed parts above the list used to use up the
+ * whole height and leave the lists with none. Give the lists a real minimum and let the page scroll instead. */
+@media (max-height:999px){
+  #app{overflow-y:auto}
+  #app.managing{overflow-y:hidden}
+  #app.managing #browser{flex:1;height:auto;min-height:0}
+  #browser{flex:none;min-height:0;height:max(90vh,520px);height:max(90dvh,520px)} /* a fixed height, so the lists scroll inside it */
+  #manageTop{padding:8px 12px}
+  #manageTop p{display:none}
+  #manageTools{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  #manageTools input[type=search]{grid-column:1/4;flex:none;min-height:46px}
+  #manageTools .btn{min-height:44px;padding:0 8px;font-size:16px}
+  #onlySel{min-height:44px;justify-content:center}
+}
+#app.managing #stage{display:none}
+@media (min-width:900px) and (orientation:landscape){
+  #app{overflow-y:hidden}
+  #browser{flex:1;min-height:0}
+  #app.managing #stage{display:block}
+}
+
+/* movies and shows */
+#vodTool{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"cat sort" "find find";gap:8px;padding:8px 12px;flex:none}
+#vodCatBtn{grid-area:cat;flex:none}
+#vodSearch{grid-area:find}
+#vodSort{grid-area:sort;min-height:50px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font:600 16px var(--cond)}
+@media (min-width:720px){#vodTool{grid-template-columns:minmax(150px,1fr) minmax(200px,2fr) auto;grid-template-areas:"cat find sort"}}
+#vodCount{padding:2px 14px 6px;color:var(--mute);font-size:14px;flex:none;min-height:24px}
+#vodWrap{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:4px 12px 18px}
+#vodGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:16px 10px}
+.vcard{display:block;min-width:0;padding:0;border:0;background:none;text-align:left}
+.vposter{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--raised);display:grid;place-items:center}
+.vposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.vini{font:700 26px var(--cond);color:var(--mute)}
+.vprog{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(0,0,0,.6)}
+.vprog i{display:block;height:100%;background:var(--tally)}
+.vtitle{margin-top:6px;font:600 14px/1.2 var(--cond);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vsub{color:var(--mute);font-size:12px;margin-top:1px}
+#vodMsg{padding:28px 8px;display:grid;gap:10px;justify-items:start}
+#vodMsg strong{font:700 22px var(--cond)}
+#vodMsg p{margin:0;color:var(--mute);max-width:44ch}
+.vhead{padding:10px 16px 4px;color:var(--mute);font:700 15px var(--cond);background:var(--ink);position:sticky;top:0;z-index:1}
+#vodCatBody details{border-bottom:1px solid var(--line)}
+#vodCatBody summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;padding:8px 16px;cursor:pointer;list-style:none;font:700 19px var(--cond)}
+#vodCatBody summary::-webkit-details-marker{display:none}
+#vodCatBody summary .cname::before{content:"\25B8  ";color:var(--mute)}
+#vodCatBody details[open] summary .cname::before{content:"\25BE  "}
+#vodCatBody details .opt{padding-left:34px}
+#vodDetail{width:min(720px,96vw)}
+.vd{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;padding:14px 16px}
+@media (max-width:520px){.vd{grid-template-columns:104px minmax(0,1fr)}}
+.vd h3{margin:0 0 4px;font:700 24px var(--cond)}
+.vmeta{color:var(--mute);font-size:15px}
+.vcast{color:var(--mute);font-size:14px;margin-top:6px}
+.vplot{margin:10px 0 0;color:#cfd7e6;font-size:15px;line-height:1.45}
+.eprow{display:flex;gap:6px;align-items:stretch}.eprow .opt{flex:1;min-width:0}.eprow .dlb{flex:none;min-width:48px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font:700 15px var(--cond);padding:0 12px}
+a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:inherit;min-height:48px;padding:0 16px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font:700 16px var(--cond)}
+#savedBtn{margin:0 12px 6px;min-height:44px}#savedList{padding:6px 12px 14px}.srow2{display:grid;gap:6px;padding:12px 4px;border-bottom:1px solid var(--line)}.srow2 b{font:700 17px var(--cond);word-break:break-word}.srow2 small{color:var(--mute)}.srow2 .vbtns{margin-top:2px}.sprog{height:4px;border-radius:2px;background:var(--line);overflow:hidden}.sprog i{display:block;height:100%;background:var(--accent,#4da3ff)}
+.vbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.vseason{padding:10px 16px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.vseason select{min-height:46px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--raised);font:600 16px var(--cond)}
+.opt .eprog{display:block;height:3px;margin-top:6px;background:#2a3446;border-radius:2px;overflow:hidden}
+.opt .eprog i{display:block;height:100%;background:var(--tally)}
+</style>
+</head>
+<body>
+<noscript>This page needs JavaScript.</noscript>
+<div id="app">
+  <header id="top">
+    <div class="seg" id="providers" role="group" aria-label="Provider"></div>
+    <div id="status" aria-live="polite">
+      <span class="lamp" id="lamp"></span>
+      <span id="statusText">Idle</span>
+      <span id="statusSub"></span>
+    </div>
+    <button class="iconbtn" id="btnSettings" aria-label="Settings">&#9881;</button>
+  </header>
+
+  <section id="stage">
+    <div id="screen">
+      <video id="video" controlsList="nodownload noremoteplayback" disablePictureInPicture playsinline></video>
+      <div id="overlay"><strong>Nothing is streaming</strong><span>Pick a channel to start.</span></div>
+    </div>
+    <div id="now">
+      <div id="nowTop">
+        <div id="nowLogo"></div>
+        <div id="nowText">
+          <div id="nowName">No channel selected</div>
+          <div id="nowProg"></div>
+        </div>
+        <button id="btnLive" hidden>Go live</button>
+        <button id="btnPlay" hidden>Stop</button>
+      </div>
+      <div id="bar" hidden><i></i></div>
+    </div>
+  </section>
+
+  <main id="browser">
+    <nav id="tabs" role="tablist">
+      <button role="tab" data-tab="channels" aria-selected="true">Channels</button>
+      <button role="tab" data-tab="favorites" aria-selected="false">Favorites</button>
+      <button role="tab" data-tab="vod" aria-selected="false" id="tabVod" hidden>Movies &amp; Shows</button>
+    </nav>
+
+    <div id="paneList" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <div id="toolbar">
+        <button id="groupBtn" aria-haspopup="dialog"><span>Choose group</span><span aria-hidden="true">&#9662;</span></button>
+        <input id="search" type="search" placeholder="Search your groups" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div id="countRow"><div id="count"></div><div id="editBar"><button class="btn sm" id="btnHiddenList" type="button" hidden>Hidden</button><button class="btn sm" id="btnResetOrder" type="button" hidden>Reset order</button><button class="btn sm" id="btnEdit" type="button" hidden>Edit</button></div></div>
+      <div id="listWrap">
+        <div id="grid"><div id="timebar" aria-hidden="true"></div><div id="nowline" aria-hidden="true"></div><ul id="list"></ul></div>
+        <div id="msg" hidden></div>
+        <div id="sentinel" style="height:1px" hidden></div>
+      </div>
+    </div>
+
+    <div id="paneVod" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div id="vodTool">
+        <button id="vodCatBtn" type="button" aria-haspopup="dialog"><span>Choose a list</span><span aria-hidden="true">&#9662;</span></button>
+        <input id="vodSearch" type="search" placeholder="Search movies and shows" autocomplete="off" enterkeyhint="search">
+        <select id="vodSort" aria-label="Sort"><option value="best" hidden>Best match</option><option value="az">A to Z</option><option value="new">Recently added</option><option value="rating">Highest rated</option><option value="year">Newest release</option></select>
+      </div>
+      <div id="vodCount"></div>
+      <button class="btn" id="savedBtn" type="button" hidden>Downloads and recordings</button>
+      <div id="vodWrap"><div id="vodGrid"></div><div id="vodMsg" hidden></div></div>
+    </div>
+
+    <div id="paneManage" hidden>
+      <div id="manageTop">
+        <p>Tick the provider groups you want. Every channel in a ticked group shows up in Channels.</p>
+        <div id="manageTools">
+          <input id="catFilter" type="search" placeholder="Filter groups, for example US |" autocomplete="off">
+          <button class="btn" id="selShown">Select shown</button>
+          <button class="btn" id="clrShown">Clear shown</button>
+          <label id="onlySel"><input type="checkbox" id="onlySelBox" style="width:24px;height:24px"> Ticked only</label>
+        </div>
+      </div>
+      <div id="manageBar">
+        <div id="manageSummary">0 groups</div>
+        <button class="btn" id="manageBack" type="button">Back</button>
+        <button class="btn primary" id="saveGroups" disabled>Save groups</button>
+      </div>
+      <div id="cats"></div>
+      <div id="manageFoot"><span id="catalogAge"></span><button class="btn" id="refreshCatalog">Refresh channel list</button></div>
+    </div>
+  </main>
+</div>
+
+<dialog id="vodCatSheet" aria-label="Movies and shows lists">
+  <div class="dhead"><input id="vodCatFilter" type="search" placeholder="Filter categories" autocomplete="off"><button class="btn" id="vodPickBtn" type="button">Manage categories</button><button class="btn" data-close>Done</button></div>
+  <div class="dbody" id="vodCatBody"></div>
+</dialog>
+
+<dialog id="savedSheet" aria-label="Downloads and recordings">
+  <div class="dhead"><h2>Downloads and recordings</h2><button class="btn" data-close>Close</button></div>
+  <div class="dbody" id="savedList"></div>
+</dialog>
+<dialog id="vodDetail" aria-label="Title details">
+  <div class="dhead"><h2 id="vodDetailTitle"></h2><button class="btn" data-close>Close</button></div>
+  <div class="dbody" id="vodDetailBody"></div>
+</dialog>
+
+<dialog id="vodPickSheet" aria-label="Movie and show categories">
+  <div class="dhead"><input id="vodPickFilter" type="search" placeholder="Filter categories, for example EN |" autocomplete="off"><button class="btn" id="vodPickBack" type="button">Back</button></div>
+  <div class="field" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)"><button class="btn" id="vpAll" type="button">Select shown</button><button class="btn" id="vpNone" type="button">Clear shown</button><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="vpOnly" style="width:24px;height:24px"> Ticked only</label></div>
+  <div class="dbody" id="vodPickBody"></div>
+  <div class="dfoot"><span id="vodPickSummary" style="flex:1 1 100%;color:var(--mute)"></span><button class="btn primary" id="vodPickSave" type="button" disabled>Save categories</button></div>
+</dialog>
+
+<dialog id="pinSheet" aria-label="Content lock PIN">
+  <div class="dhead"><button class="btn" id="pinBack" type="button">Back</button><h2 id="pinTitle">Enter your PIN</h2></div>
+  <div class="dbody" id="pinBody"></div>
+</dialog>
+
+<dialog id="groupSheet" aria-label="Groups">
+  <div class="dhead"><input id="groupFilter" type="search" placeholder="Filter groups" autocomplete="off"><button class="btn" id="groupReorder" type="button" aria-pressed="false">Reorder</button><button class="btn" data-close>Close</button></div>
+  <div class="dbody" id="groupOptions"></div>
+</dialog>
+
+<dialog id="hiddenSheet" aria-label="Hidden channels">
+  <div class="dhead"><h2>Hidden channels</h2><button class="btn" data-close>Done</button></div>
+  <div class="dbody" id="hiddenList"></div>
+</dialog>
+
+<dialog id="guideSheet" aria-label="Guide for this channel">
+  <div class="dhead"><h2 id="guideTitle">Guide</h2><button class="btn" data-close>Done</button></div>
+  <div class="dbody">
+    <div class="field" id="guideNow"></div>
+    <div class="dhead"><input id="guideFind" type="search" placeholder="Copy the guide from another channel" autocomplete="off"></div>
+    <div id="guideResults"></div>
+    <div class="field" id="guideClearRow" hidden><button class="btn" id="guideClear" type="button">Stop using a copied guide</button></div>
+  </div>
+</dialog>
+
+<dialog id="settingsSheet" aria-label="Settings">
+  <div class="dhead"><h2>Settings</h2><button class="btn" data-close>Done</button></div>
+  <div class="dbody">
+    <div class="field"><small id="verNote"></small></div>
+    <div class="field"><label for="setPause">Stop the stream when paused</label>
+      <select id="setPause"><option value="0">Never</option><option value="15">After 15 seconds</option><option value="45">After 45 seconds</option><option value="120">After 2 minutes</option></select>
+      <small>Stopping frees your provider connection and ends all video traffic from the server.</small></div>
+    <div class="field"><label for="setHidden">Stop the stream when this page is hidden</label>
+      <select id="setHidden"><option value="0">Never</option><option value="60">After 1 minute</option><option value="120">After 2 minutes</option><option value="300">After 5 minutes</option></select>
+      <small>Applies when you switch to another app or the screen turns off.</small></div>
+    <div class="field" id="acctRewind" hidden><label for="setRewind">Rewind live TV</label>
+      <select id="setRewind"></select>
+      <small>How far back you can wind a live channel. A shorter time takes less space on the server.</small></div>
+    <div class="field" id="appServer" hidden><button class="btn" id="btnServers">Change server</button> <button class="btn" id="btnAppUpdate">Check for app update</button><small>Pick a different Zibbit server, or see whether a newer app is available.</small></div>
+    <div class="field" id="acctGroups" hidden><button class="btn" id="btnGroups">Manage groups</button><small id="groupsNote">Choose which groups show up in Channels.</small></div>
+    <div class="field" id="acctAdult" hidden><button class="btn" id="btnAdult">Unlock blocked channels</button> <button class="btn" id="btnPin">Set or change PIN</button><small id="adultNote"></small></div>
+    <div class="field" id="acctAdmin" hidden><button class="btn" id="btnAdmin">Admin settings</button><small>Providers, channels and guide, playback, locks, people and security.</small></div>
+    <div class="field" id="acctPw" hidden><button class="btn" id="btnPw">Change password</button></div>
+    <div class="field" id="acct" hidden><small id="acctName"></small><button class="btn" id="signOut">Sign out</button><button class="btn" id="signOutAll">Sign out everywhere</button></div>
+    <div class="field"><button class="btn primary" id="stopAll">Stop all streams now</button>
+      <small id="stopAllNote">Ends every stream the server is pulling, on any device.</small></div>
+  </div>
+</dialog>
+
+<dialog id="busySheet" aria-label="Already watching">
+  <div class="dhead"><h2>Already watching</h2></div>
+  <div class="dbody">
+    <p id="busyMsg"></p>
+    <div id="busyBtns">
+      <button class="btn primary" id="busyTake" type="button">Watch anyway</button>
+      <button class="btn" id="busyOther" type="button" hidden></button>
+      <button class="btn" id="busyCancel" type="button">Cancel</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="pwSheet" aria-label="Change password">
+  <form id="pwForm" method="dialog" autocomplete="on">
+    <div class="dhead"><h2 id="pwTitle">Change password</h2><button class="btn" type="button" id="pwCancel" data-close>Cancel</button></div>
+    <div class="dbody">
+      <div class="field" id="pwWhy" hidden><p class="msg" id="pwWhyText"></p></div>
+      <div class="field"><label for="pwCur">Current password</label><input id="pwCur" type="password" autocomplete="current-password" required></div>
+      <div class="field"><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password" minlength="8" required><small>At least 8 characters.</small></div>
+      <div class="field"><label for="pwNew2">New password again</label><input id="pwNew2" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div class="field" id="pwErrBox" hidden><p class="msg bad" id="pwErr" role="alert"></p></div>
+    </div>
+    <div class="dfoot"><button class="btn primary" type="submit" id="pwGo">Save new password</button></div>
+  </form>
+</dialog>
+
+<dialog id="adminSheet" aria-label="Admin settings">
+  <div class="dhead"><h2>Admin settings</h2><button class="btn" data-close>Done</button></div>
+  <nav id="adminTabs" role="tablist">
+    <button role="tab" data-atab="providers" aria-selected="true">Providers</button>
+    <button role="tab" data-atab="channels" aria-selected="false">Channels &amp; guide</button>
+    <button role="tab" data-atab="playback" aria-selected="false">Playback</button>
+    <button role="tab" data-atab="locks" aria-selected="false">Locks</button>
+    <button role="tab" data-atab="security" aria-selected="false">Security</button>
+  </nav>
+  <div class="dbody" id="adminBody"></div>
+</dialog>
+
+<dialog id="formSheet" aria-label="Form">
+  <div class="dhead"><h2 id="formTitle"></h2><button class="btn" data-close>Cancel</button></div>
+  <div class="dbody" id="formBody"></div>
+  <div class="dfoot" id="formFoot"></div>
+</dialog>
+
+<div id="toast" hidden></div>
+
+<script src="hls.min.js"></script>
+<script src="mpegts.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = (s, root = document) => root.querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fmtRate = (bps) => (bps >= 1e9 ? (bps / 1e9).toFixed(2) + ' Gb/s' : bps >= 1e6 ? (bps / 1e6).toFixed(1) + ' Mb/s' : Math.round(bps / 1e3) + ' kb/s');
+let rateLast = null, rateNow = 0; // the previous status reading, and a smoothed bits-per-second
+const fmtTime = (sec) => new Date(sec * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const initials = (n) => n.replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } }
+};
+const settings = Object.assign({ pauseStop: 45, hiddenStop: 120 }, (() => { try { return JSON.parse(store.get('dock.settings')) || {}; } catch { return {}; } })());
+
+const S = {
+  adult: { on: false, open: true, hasPin: false },
+  providers: [], pid: null, boot: null, cats: new Map(), enabled: [], favs: new Set(), sel: new Set(),
+  tab: 'channels', catId: null, items: [], rendered: 0, total: 0, loadSeq: 0,
+  current: null, starting: false, playing: false, tearing: false, hls: null, ts: null,
+  edit: false, hiddenCount: 0,
+  triedTs: false, netRetries: 0, mediaRetries: 0, epg: [], resumeId: null, wake: null,
+  timers: { pause: null, hidden: null, waiting: null, search: null },
+  me: {}
+};
+const prov = () => S.providers.find((p) => p.id === S.pid);
+/* One id per device, so the server can tell this phone from that tablet when counting streams. */
+const CID = (() => {
+  let c = store.get('dock.cid');
+  if (!/^[A-Za-z0-9_-]{8,40}$/.test(c || '')) { c = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); store.set('dock.cid', c); }
+  return c;
+})();
+const video = $('#video');
+const hasIO = 'IntersectionObserver' in window;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  let j = null;
+  try { j = await r.json(); } catch { /* non-json */ }
+  if (r.status === 401 && !path.startsWith('/api/login') && !path.startsWith('/api/password')) { location.replace('/login.html'); throw new Error('Signed out'); }
+  if (r.status === 403 && j && j.mustChange) { location.reload(); throw new Error('Password change required'); }
+  if (!r.ok) { const e = new Error((j && j.error) || `Request failed (${r.status})`); e.status = r.status; e.body = j; throw e; }
+  return j;
+}
+const send = (path, body, method = 'PUT') => api(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => { t.hidden = true; }, 2600);
+}
+const openDialog = (d) => (d.showModal ? d.showModal() : d.setAttribute('open', ''));
+const closeDialog = (d) => (d.close ? d.close() : d.removeAttribute('open'));
+
+/* ---------------- header ---------------- */
+function renderProviders() {
+  const box = $('#providers');
+  box.replaceChildren();
+  for (const p of S.providers) {
+    const b = el('button', '', p.name);
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(p.id === S.pid));
+    b.addEventListener('click', () => { if (p.id !== S.pid) switchProvider(p.id); });
+    box.append(b);
+  }
+}
+
+async function refreshStatus() {
+  const lamp = $('#lamp');
+  try {
+    const s = await api('/api/status');
+    const open = s.sessions.find((x) => x.live);
+    lamp.className = 'lamp' + (open ? ' on' : '');
+    $('#statusText').textContent = open ? 'Streaming' : 'Idle';
+    if (open) {
+      const t = performance.now(), key = open.p + '/' + open.s;
+      if (rateLast && rateLast.key === key && open.bytes >= rateLast.bytes && t > rateLast.t) {
+        const inst = ((open.bytes - rateLast.bytes) * 8) / ((t - rateLast.t) / 1000);
+        rateNow = rateNow ? rateNow * 0.5 + inst * 0.5 : inst; // smoothed, because video arrives in bursts
+      } else rateNow = 0;
+      rateLast = { key, bytes: open.bytes, t };
+    } else { rateLast = null; rateNow = 0; }
+    $('#statusSub').textContent = open ? `${open.name || 'channel ' + open.s}  ${rateNow ? fmtRate(rateNow) : ''}` : '';
+  } catch {
+    lamp.className = 'lamp warn';
+    $('#statusText').textContent = 'Server unreachable';
+    $('#statusSub').textContent = '';
+  }
+}
+async function pollStatus() {
+  if (!document.hidden) await refreshStatus();
+  setTimeout(pollStatus, 4000);
+}
+
+/* ---------------- overlay + now playing ---------------- */
+function showOverlay(title, sub, spinner, action) {
+  const o = $('#overlay');
+  o.replaceChildren();
+  if (spinner) o.append(el('div', 'spin'));
+  o.append(el('strong', '', title));
+  if (sub) o.append(el('span', '', sub));
+  if (action) { const b = el('button', 'btn primary', action.label); b.type = 'button'; b.addEventListener('click', action.fn); o.append(b); }
+  o.hidden = false;
+}
+/* A start cut off by a newer load or by the player's own recovery rejects with AbortError. That says nothing about the channel on screen, so it must not put up the "Ready" screen: ignore it once the player is gone, try once more when it is still the current one. */
+function startedOk(isCur) {
+  return (e) => {
+    if (e && e.name === 'AbortError') {
+      if (!isCur()) return;
+      setTimeout(() => { if (isCur() && video.paused) { const p = video.play(); if (p && p.catch) p.catch((e2) => { if (isCur() && !(e2 && e2.name === 'AbortError')) readyOverlay(e2); }); } }, 400);
+      return;
+    }
+    if (isCur()) readyOverlay(e);
+  };
+}
+function readyOverlay(why) {
+  const tap = () => {
+    const p = video.play();
+    // a refusal used to be swallowed, leaving this screen up with no clue why: say what the browser said
+    if (p && p.catch) p.catch((e) => showOverlay('The browser would not start playback', `${(e && e.name) || 'Error'}${e && e.message ? ': ' + String(e.message).slice(0, 140) : ''}`, false, { label: 'Try again', fn: tap }));
+  };
+  showOverlay('Ready', why && why.name && why.name !== 'NotAllowedError' ? `The browser said: ${why.name}.` : 'The browser held back autoplay.', false, { label: 'Play', fn: tap });
+}
+const hideOverlay = () => { $('#overlay').hidden = true; };
+
+function nowNext() {
+  const t = Date.now() / 1000;
+  const i = S.epg.findIndex((e) => e.start <= t && t < e.end);
+  return { cur: i >= 0 ? S.epg[i] : null, next: S.epg.filter((e) => e.start >= t) };
+}
+function renderNow() {
+  if (S.vod) return renderNowVod();
+  const c = S.current;
+  const logo = $('#nowLogo');
+  logo.replaceChildren();
+  $('#btnPlay').hidden = !c;
+  if (!c) {
+    $('#nowName').textContent = 'No channel selected';
+    $('#nowProg').textContent = '';
+    $('#bar').hidden = true;
+    return;
+  }
+  if (c.i) { const img = new Image(); img.alt = ''; img.src = c.i; img.onerror = () => { img.remove(); logo.textContent = initials(c.n); }; logo.append(img); } else logo.textContent = initials(c.n);
+  $('#nowName').textContent = c.n;
+  const live = S.starting || S.playing;
+  const b = $('#btnPlay');
+  b.textContent = live ? 'Stop' : 'Resume';
+  b.classList.toggle('resume', !live);
+  const { cur } = nowNext();
+  $('#nowProg').textContent = cur ? `${cur.title}  ${fmtTime(cur.start)} to ${fmtTime(cur.end)}` : 'No guide data for this channel';
+  const bar = $('#bar');
+  bar.hidden = !cur;
+  if (cur) $('i', bar).style.width = Math.min(100, Math.max(0, ((Date.now() / 1000 - cur.start) / (cur.end - cur.start)) * 100)) + '%';
+}
+async function loadCurrentEpg() {
+  const c = S.current;
+  if (!c) return;
+  try {
+    const j = await api(`/api/p/${c.p}/epg?s=${c.s}`);
+    if (S.current && S.current.s === c.s && S.current.p === c.p) { S.epg = j.list; renderNow(); }
+  } catch { /* guide is optional */ }
+}
+setInterval(() => {
+  if (!S.current) return;
+  const { cur } = nowNext();
+  if (!cur && S.epg.length === 0) return;
+  if (!cur || Date.now() / 1000 >= cur.end) loadCurrentEpg(); else renderNow();
+}, 15000);
+
+/* ---------------- playback ---------------- */
+function clearTimers() { for (const k of ['pause', 'hidden', 'waiting']) { clearTimeout(S.timers[k]); S.timers[k] = null; } }
+
+function teardownPlayer() {
+  S.tearing = true;
+  if (S.hls) { try { S.hls.destroy(); } catch { /* already gone */ } S.hls = null; }
+  if (S.ts) { try { S.ts.pause(); S.ts.unload(); S.ts.detachMediaElement(); S.ts.destroy(); } catch { /* already gone */ } S.ts = null; }
+  try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
+  video.controls = false; // no empty native control bar while nothing is loaded
+  S.playing = false;
+  S.tearing = false;
+  releaseWake();
+}
+async function acquireWake() { try { if (navigator.wakeLock && !S.wake) { S.wake = await navigator.wakeLock.request('screen'); S.wake.addEventListener('release', () => { S.wake = null; }); } } catch { /* not allowed */ } }
+function releaseWake() { try { if (S.wake) S.wake.release(); } catch { /* ignore */ } S.wake = null; }
+
+function stopServer(c) { if (c) send('/api/stop', { p: c.p, s: c.s, cid: CID }, 'POST').catch(() => {}).then(refreshStatus); }
+
+function stopPlayback(title, sub) {
+  if (S.vod) { vodSave(); S.vod = null; }
+  S.playSeq = (S.playSeq || 0) + 1; // cancels a start that is still waiting on the server
+  clearTimers();
+  const c = S.current;
+  S.starting = false;
+  teardownPlayer();
+  stopServer(c);
+  markLive();
+  renderNow();
+  showOverlay(title || 'Stopped', sub || 'Tap Resume, or pick another channel.');
+}
+/* tell the server why the player gave up (the reason only, no addresses), so it shows in the Zibbit log next to the channel */
+function noteFail(why) {
+  const c = S.current;
+  if (c) send('/api/clientlog', { p: c.p, s: c.s, why: String(why).slice(0, 160) }, 'POST').catch(() => {});
+}
+async function fail(title, sub) {
+  const other = S.providers.find((p) => p.id !== S.pid);
+  const c = S.current, wasPlaying = S.playing;
+  let t = title, u = sub || (other ? 'Try again, or switch providers.' : 'Try again in a moment.');
+  if (wasPlaying && c) {
+    // a stream that was fine and then died: did someone else take the connection?
+    try {
+      const st = await api('/api/status');
+      if (S.current === c && !st.sessions.some((x) => x.p === c.p && x.s === c.s)) { t = 'Someone else took over'; u = 'Another profile started watching and the provider only allows so many streams at once. Tap Resume to take it back.'; }
+    } catch { /* keep the generic message */ }
+  }
+  if (S.current !== c) return;
+  stopPlayback(t, u);
+}
+
+/* Ask the server first: the provider only allows so many streams at once. */
+async function play(it, take) {
+  if (S.vod) { vodSave(); S.vod = null; }
+  const seq = (S.playSeq = (S.playSeq || 0) + 1);
+  showOverlay('Connecting', it.n, true);
+  try { await send('/api/claim', { p: S.pid, s: it.s, cid: CID, take: !!take }, 'POST'); }
+  catch (e) {
+    if (seq !== S.playSeq) return;
+    if (e.status === 409 && e.body && e.body.busy) return askBusy(it, e.body);
+    if (e.status === 401) return;
+    /* any other trouble: try to play anyway; the stream request will show the real error */
+  }
+  if (seq !== S.playSeq) return;
+  startPlay(it);
+}
+function askBusy(it, b) {
+  // the tapped channel did not start: put the screen back the way it was
+  if (S.playing) hideOverlay(); else if (S.current) showOverlay('Stopped', 'Tap Resume, or pick another channel.'); else showOverlay('Nothing is streaming', 'Pick a channel to start.');
+  const names = b.by.join(' and ');
+  const prog = (b.watching || []).map((w) => w.name).filter(Boolean)[0];
+  const pname = prov().name;
+  $('#busyMsg').textContent = `${names} ${b.by.length > 1 ? 'are' : 'is'} already watching${prog && b.by.length === 1 ? ' ' + prog : ''} on ${pname}, which allows ${b.max} stream${b.max === 1 ? '' : 's'} at a time. Watching here will stop theirs.`;
+  const other = S.providers.find((p) => p.id !== S.pid);
+  const ob = $('#busyOther');
+  ob.hidden = !other;
+  if (other) ob.textContent = `Use ${other.name} instead`;
+  const dlg = $('#busySheet');
+  $('#busyTake').onclick = () => { closeDialog(dlg); play(it, true); };
+  ob.onclick = () => { closeDialog(dlg); switchProvider(other.id).then(() => toast(`Pick a channel on ${other.name}`)); };
+  $('#busyCancel').onclick = () => closeDialog(dlg);
+  openDialog(dlg);
+}
+function startPlay(it) {
+  clearTimers();
+  const prev = S.current;
+  teardownPlayer();
+  if (prev && (prev.s !== it.s || prev.p !== S.pid)) stopServer(prev);
+  S.current = { s: it.s, n: it.n, i: it.i, p: S.pid };
+  S.epg = []; S.triedTs = false; S.netRetries = 0; S.mediaRetries = 0; S.starting = true;
+  showOverlay('Connecting', it.n, true);
+  video.controls = true;
+  renderNow(); markLive(); setTimeout(loadCurrentEpg, 2000); /* stream first, guide after */
+  store.set(`dock.cat.last.${S.pid}`, it.s);
+  send('/api/last', { p: S.pid, s: it.s }).catch(() => {});
+  const base = `/live/${S.pid}/${it.s}`, q = `?cid=${encodeURIComponent(CID)}`;
+  S.rw = !!(S.me && S.me.rewind > 0); // the server keeps a buffer for this channel, so it can be wound back with the player's own bar
+  $('#btnLive').hidden = true;
+  if (prov().format === 'ts' && !S.rw) startTs(`${base}.ts${q}`); else startHls(`${base}.m3u8${q}`, `${base}.ts${q}`);
+}
+
+function startHls(url, tsUrl) {
+  if (window.Hls && Hls.isSupported()) {
+    const hls = new Hls({ maxBufferLength: 15, maxMaxBufferLength: 30, backBufferLength: 10, liveSyncDurationCount: 3, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 3, fragLoadingMaxRetry: 4, enableWorker: true });
+    S.hls = hls;
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { const p = video.play(); if (p && p.catch) p.catch(startedOk(() => S.hls === hls)); });
+    hls.on(Hls.Events.ERROR, (_, d) => {
+      if (!d.fatal || S.hls !== hls) return;
+      const net = d.type === Hls.ErrorTypes.NETWORK_ERROR;
+      if (net && (d.details === 'manifestLoadError' || d.details === 'manifestLoadTimeOut') && !S.triedTs && window.mpegts) {
+        S.triedTs = true; S.rw = false; teardownPlayer(); showOverlay('Connecting', 'Trying the TS stream', true); startTs(tsUrl); return;
+      }
+      if (net && S.netRetries++ < 3) { hls.startLoad(); return; }
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR && S.mediaRetries++ < 2) { hls.recoverMediaError(); return; }
+      const why = `${d.type}/${d.details}${d.response && d.response.code ? ' HTTP ' + d.response.code : ''}${d.frag && d.frag.sn != null ? ' segment ' + d.frag.sn : ''}${d.reason ? ' ' + d.reason : ''}`;
+      noteFail(why);
+      fail('This channel isn’t responding');
+    });
+    hls.loadSource(url);
+    hls.attachMedia(video);
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = url;
+    const p = video.play(); if (p && p.catch) p.catch(() => {});
+  } else fail('This browser can’t play live streams', 'Open this page in Chrome.');
+}
+function startTs(url) {
+  if (!(window.mpegts && mpegts.isSupported())) return fail('This browser can’t play TS streams', 'Open this page in Chrome.');
+  const pl = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true, liveBufferLatencyMaxLatency: 8, liveBufferLatencyMinRemain: 1.5, autoCleanupSourceBuffer: true });
+  S.ts = pl;
+  pl.attachMediaElement(video);
+  pl.on(mpegts.Events.ERROR, (type, detail) => { if (S.ts === pl) { const why = `ts/${type}/${detail}`; noteFail(why); fail('This channel isn’t responding'); } });
+  pl.load();
+  const p = pl.play(); if (p && p.catch) p.catch(startedOk(() => S.ts === pl));
+}
+
+video.addEventListener('playing', () => {
+  S.playing = true; S.starting = false;
+  clearTimeout(S.timers.waiting); clearTimeout(S.timers.pause);
+  hideOverlay(); renderNow(); acquireWake(); refreshStatus();
+});
+video.addEventListener('waiting', () => {
+  if (!S.playing) return;
+  clearTimeout(S.timers.waiting);
+  S.timers.waiting = setTimeout(() => showOverlay('Buffering', '', true), 1200);
+});
+video.addEventListener('pause', () => {
+  if (S.vod || S.tearing || !S.playing || video.ended || !settings.pauseStop) return;
+  clearTimeout(S.timers.pause);
+  S.timers.pause = setTimeout(() => stopPlayback('Stopped after a pause', 'Tap Resume to start again.'), settings.pauseStop * 1000);
+});
+video.addEventListener('play', () => clearTimeout(S.timers.pause));
+video.addEventListener('error', () => { if (S.vod) return vodError(); if (!S.tearing && S.current && (S.starting || S.playing)) { const why = `video/error ${video.error ? video.error.code + ' ' + (video.error.message || '') : ''}`.trim(); noteFail(why); fail('This channel isn’t responding'); } });
+
+$('#btnPlay').addEventListener('click', () => {
+  if (S.vod) { if (S.starting || S.playing) vodStop(); else vodPlay(S.vod, S.vod.at || 0); return; }
+  if (!S.current) return;
+  if (S.starting || S.playing) stopPlayback(); else play(S.current);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if ((S.playing || S.starting) && settings.hiddenStop && !S.vod) {
+      clearTimeout(S.timers.hidden);
+      S.timers.hidden = setTimeout(() => stopPlayback('Stopped while you were away', 'Tap Resume to start again.'), settings.hiddenStop * 1000);
+    }
+  } else {
+    clearTimeout(S.timers.hidden);
+    if (S.playing) acquireWake();
+  }
+});
+window.addEventListener('pagehide', () => {
+  vodSave();
+  const c = S.current;
+  if (c && (S.playing || S.starting) && navigator.sendBeacon) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ p: c.p, s: c.s, cid: CID })], { type: 'application/json' }));
+});
+
+/* ---------------- channel list ---------------- */
+const list = $('#list');
+const wrap = $('#listWrap');
+const sentinel = $('#sentinel');
+const epgSeen = new Map();
+const epgQueue = new Set();
+let epgTimer = null;
+
+/* The guide grid: a channel column that stays put, and a time strip (about three hours across) that scrolls sideways. */
+const GRID = { start: 0, end: 0, ppm: 2.4, L: 150 };
+function layoutGrid() {
+  const now = Date.now() / 1000;
+  GRID.L = wrap.clientWidth >= 520 ? 190 : 150;
+  wrap.style.setProperty('--L', GRID.L + 'px');
+  GRID.start = Math.floor((now - 3600) / 1800) * 1800;
+  GRID.end = GRID.start + 24 * 3600;
+  GRID.ppm = Math.max(2.2, (wrap.clientWidth - GRID.L) / 180);
+  $('#grid').style.width = Math.round(GRID.L + ((GRID.end - GRID.start) / 60) * GRID.ppm) + 'px';
+  const bar = $('#timebar');
+  bar.replaceChildren(el('div', 'corner'));
+  for (let t = GRID.start; t < GRID.end; t += 1800) {
+    const tk = el('div', 'tk' + (new Date(t * 1000).getMinutes() === 0 ? ' hr' : ''), fmtTime(t));
+    tk.style.left = Math.round(GRID.L + ((t - GRID.start) / 60) * GRID.ppm) + 'px';
+    bar.append(tk);
+  }
+  placeNow();
+}
+const xAt = (t) => ((t - GRID.start) / 60) * GRID.ppm;
+function placeNow() {
+  const now = Date.now() / 1000;
+  $('#nowline').style.left = Math.round(GRID.L + xAt(now)) + 'px';
+  list.querySelectorAll('.pg[data-e]').forEach((b) => b.classList.toggle('cur', +b.dataset.s <= now && now < +b.dataset.e));
+}
+/* A programme that starts behind the channel column keeps its title in view: the text slides right with the scroll. */
+function keepTitle(b) {
+  const sl = wrap.scrollLeft, l = b._l, w = b._w;
+  const off = sl > l ? Math.min(sl - l, Math.max(0, w - 80)) : 0;
+  if (off !== b._off) { b._off = off; b.style.setProperty('--off', off + 'px'); }
+}
+let keepTick = false;
+wrap.addEventListener('scroll', () => {
+  if (keepTick) return;
+  keepTick = true;
+  requestAnimationFrame(() => { keepTick = false; const sl = wrap.scrollLeft; list.querySelectorAll('.pg[data-e]').forEach((b) => { if (b._off || (sl > b._l && sl < b._l + b._w)) keepTitle(b); }); });
+}, { passive: true });
+function scrollToNow() { wrap.scrollLeft = Math.max(0, xAt(Date.now() / 1000 - 1200)); }
+setInterval(placeNow, 30000);
+
+function applyGrid(li, progs, it) {
+  const slots = $('.slots', li);
+  slots.replaceChildren();
+  const now = Date.now() / 1000;
+  const frag = document.createDocumentFragment();
+  for (const [s0, e0, title] of progs) {
+    if (e0 <= GRID.start || s0 >= GRID.end) continue;
+    const s1 = Math.max(s0, GRID.start), e1 = Math.min(e0, GRID.end);
+    const b = el('button', 'pg' + (s0 <= now && now < e0 ? ' cur' : ''));
+    b.type = 'button';
+    b.dataset.s = s0; b.dataset.e = e0;
+    b._l = Math.round(xAt(s1) + 1); b._w = Math.max(8, Math.round(((e1 - s1) / 60) * GRID.ppm) - 2); b._off = 0;
+    b.style.left = b._l + 'px';
+    b.style.width = b._w + 'px';
+    b.append(el('b', '', title || 'Untitled'), el('i', '', `${fmtTime(s0)} to ${fmtTime(e0)}`));
+    b.title = `${title}  ${fmtTime(s0)} to ${fmtTime(e0)}`;
+    b.addEventListener('click', () => { if (s0 > now) toast(`${title}: ${fmtTime(s0)} to ${fmtTime(e0)}`); else play(it); });
+    frag.append(b);
+    keepTitle(b);
+  }
+  if (!frag.childNodes.length) {
+    const b = el('button', 'pg none');
+    b.type = 'button';
+    b.style.left = Math.round(xAt(now - 1200)) + 'px';
+    b.style.width = Math.round(175 * GRID.ppm) + 'px';
+    b.append(el('b', '', 'No guide data for this channel'));
+    b.addEventListener('click', () => play(it));
+    frag.append(b);
+  }
+  slots.append(frag);
+}
+function queueEpg(li) {
+  const key = S.pid + ':' + li.dataset.s;
+  const hit = epgSeen.get(key);
+  if (hit && Date.now() - hit.at < 600000) { applyGrid(li, hit.v, li._it); return; }
+  epgQueue.add(li.dataset.s);
+  clearTimeout(epgTimer);
+  epgTimer = setTimeout(flushEpg, 200);
+}
+async function flushEpg() {
+  const pid = S.pid;
+  const ids = [...epgQueue].slice(0, 24);
+  ids.forEach((id) => epgQueue.delete(id));
+  if (!ids.length) return;
+  try {
+    const out = await api(`/api/p/${pid}/epg-grid?ids=${ids.join(',')}`);
+    for (const id of ids) {
+      const v = out[id] || [];
+      epgSeen.set(pid + ':' + id, { at: Date.now(), v });
+      if (S.pid === pid) list.querySelectorAll(`.row[data-s="${id}"]`).forEach((li) => applyGrid(li, v, li._it));
+    }
+  } catch { /* rows stay empty until the next scroll */ }
+  if (epgQueue.size) epgTimer = setTimeout(flushEpg, 250);
+}
+const rowObserver = hasIO ? new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) { queueEpg(e.target); rowObserver.unobserve(e.target); }
+}, { root: wrap, rootMargin: '300px 0px' }) : null;
+
+function rowEl(it) {
+  if (S.edit) return editRowEl(it);
+  const li = el('li', 'row');
+  li.dataset.s = it.s;
+  li._it = it;
+  const chan = el('div', 'chan');
+  const pick = el('button', 'pick');
+  pick.type = 'button';
+  const logo = el('span', 'logo');
+  if (it.i) { const img = new Image(); img.loading = 'lazy'; img.decoding = 'async'; img.alt = ''; img.src = it.i; img.onerror = () => { img.remove(); logo.textContent = initials(it.n); }; logo.append(img); } else logo.textContent = initials(it.n);
+  pick.append(logo, el('span', 'nm', it.n));
+  pick.addEventListener('click', () => play(it));
+  const star = el('button', 'star', S.favs.has(it.s) ? '★' : '☆');
+  star.type = 'button';
+  star.setAttribute('aria-label', 'Favorite ' + it.n);
+  star.setAttribute('aria-pressed', String(S.favs.has(it.s)));
+  star.addEventListener('click', () => toggleFav(it, star, li));
+  chan.append(pick, star);
+  li.append(chan, el('div', 'slots'));
+  if (S.current && S.current.p === S.pid && S.current.s === it.s && (S.starting || S.playing)) li.classList.add('live');
+  if (rowObserver) rowObserver.observe(li); else queueEpg(li);
+  return li;
+}
+function renderMore(n = 150) {
+  const end = Math.min(S.items.length, S.rendered + n);
+  const frag = document.createDocumentFragment();
+  for (let i = S.rendered; i < end; i++) frag.append(rowEl(S.items[i]));
+  list.append(frag);
+  S.rendered = end;
+  sentinel.hidden = end >= S.items.length;
+}
+let gridW = 0;
+if ('ResizeObserver' in window) new ResizeObserver(() => {
+  const w = wrap.clientWidth;
+  if (!w || w === gridW) return;
+  gridW = w;
+  if (!S.items.length || $('#grid').hidden) return;
+  layoutGrid();
+  list.querySelectorAll('.row').forEach((li) => { const h = epgSeen.get(S.pid + ':' + li.dataset.s); if (h) applyGrid(li, h.v, li._it); });
+  scrollToNow();
+}).observe(wrap);
+if (hasIO) new IntersectionObserver((es) => { if (es[0].isIntersecting && S.rendered < S.items.length) renderMore(); }, { root: wrap, rootMargin: '700px 0px' }).observe(sentinel);
+
+function showMsg(title, body, actionLabel, action) {
+  const m = $('#msg');
+  m.replaceChildren(el('strong', '', title));
+  if (body) m.append(el('p', '', body));
+  if (actionLabel) { const b = el('button', 'btn primary', actionLabel); b.type = 'button'; b.addEventListener('click', action); m.append(b); }
+  m.hidden = false;
+  list.replaceChildren(); sentinel.hidden = true; $('#grid').hidden = true;
+  $('#count').textContent = '';
+  updateEditUi();
+}
+const hideMsg = () => { $('#msg').hidden = true; };
+
+function renderList() {
+  list.replaceChildren();
+  S.rendered = 0;
+  hideMsg();
+  wrap.scrollTop = 0;
+  const q = $('#search').value.trim();
+  if (!S.items.length) {
+    if (S.tab === 'favorites') return showMsg('No favorites yet', 'Tap the star on any channel to keep it here.');
+    if (q) return showMsg('Nothing matches', 'Search covers the groups you ticked in Manage. Check the spelling or add more groups.');
+    return showMsg(S.catId === ALL ? 'Nothing to show' : 'This group is empty', S.catId === ALL ? 'Every channel in your groups is hidden.' : 'Pick another group from the menu above.');
+  }
+  const n = S.total.toLocaleString();
+  $('#count').textContent = S.tab === 'favorites' ? `${n} favorite${S.total === 1 ? '' : 's'}`
+    : q ? `${n}${S.truncated || S.total >= 500 ? '+' : ''} matches in your groups` : `${n} channels${S.hiddenCount ? `, ${S.hiddenCount} hidden` : ''}`;
+  $('#grid').hidden = false;
+  $('#grid').classList.toggle('editing', S.edit);
+  if (S.edit) { $('#grid').style.width = ''; wrap.scrollLeft = 0; wrap.style.setProperty('--L', (wrap.clientWidth >= 520 ? 190 : 116) + 'px'); } else { layoutGrid(); scrollToNow(); }
+  renderMore();
+  updateEditUi();
+}
+async function loadList() {
+  if (!S.pid) return;
+  const seq = ++S.loadSeq;
+  const pid = S.pid;
+  const q = $('#search').value.trim();
+  let path;
+  if (S.tab === 'favorites') path = `/api/p/${pid}/channels?fav=1`;
+  else if (q) path = `/api/p/${pid}/channels?q=${encodeURIComponent(q)}`;
+  else if (S.catId !== null) path = `/api/p/${pid}/channels?cat=${encodeURIComponent(S.catId)}`;
+  else { S.items = []; S.total = 0; return showMsg('No groups chosen yet', 'Pick the provider groups you want to watch.', 'Manage groups', () => setTab('manage')); }
+  try {
+    const j = await api(path);
+    if (seq !== S.loadSeq || pid !== S.pid) return;
+    S.items = j.items; S.total = j.total; S.truncated = j.truncated; S.hiddenCount = j.hiddenCount || 0;
+    if (j.locked) { list.replaceChildren(); $('#count').textContent = ''; return showMsg('This group is locked', 'Enter your PIN to see its channels.', 'Enter PIN', async () => { if (await needPin()) { await refreshAdult(false); loadList(); } }); }
+    renderList();
+  } catch (e) { if (seq === S.loadSeq) showMsg('Couldn’t load channels', e.message, 'Try again', loadList); }
+}
+/* ---------------- hide and reorder channels (a person's own view of a provider) ---------------- */
+const canEdit = () => !!S.items.length && (S.tab === 'favorites' || (S.tab === 'channels' && S.catId !== null && S.catId !== ALL && !$('#search').value.trim()));
+function updateEditUi() {
+  const b = $('#btnEdit');
+  b.hidden = !(canEdit() || S.edit);
+  b.textContent = S.edit ? 'Done' : 'Edit';
+  b.setAttribute('aria-pressed', String(S.edit));
+  const grp = S.edit && S.tab === 'channels';
+  $('#btnHiddenList').hidden = !grp;
+  $('#btnHiddenList').textContent = S.hiddenCount ? `Hidden (${S.hiddenCount})` : 'Hidden';
+  $('#btnResetOrder').hidden = !grp;
+}
+let chanTimer = null, chanPending = null;
+async function flushChannelOrder() {
+  clearTimeout(chanTimer);
+  const p = chanPending;
+  chanPending = null;
+  if (!p) return;
+  try { await send(`/api/p/${p.pid}/customize`, p.body, 'POST'); } catch (e) { toast('Couldn’t save the order: ' + e.message); }
+}
+function scheduleChannelOrder() {
+  const ids = S.items.map((x) => x.s);
+  chanPending = { pid: S.pid, body: S.tab === 'favorites' ? { op: 'favorites', ids } : { op: 'order', cat: S.catId, ids } };
+  clearTimeout(chanTimer);
+  chanTimer = setTimeout(flushChannelOrder, 700);
+}
+function rerenderEdit(keepId) {
+  const keep = Math.max(S.rendered, 150), top = wrap.scrollTop;
+  list.replaceChildren();
+  S.rendered = 0;
+  renderMore(keep);
+  wrap.scrollTop = top;
+  if (keepId) { const r = list.querySelector(`.row[data-s="${keepId}"]`); if (r) r.scrollIntoView({ block: 'nearest' }); }
+}
+function moveChannel(id, to) {
+  const i = S.items.findIndex((x) => x.s === id);
+  if (i < 0) return;
+  const j = to === 'top' ? 0 : to === 'bottom' ? S.items.length - 1 : Math.max(0, Math.min(S.items.length - 1, i + to));
+  if (j === i) return;
+  const [it] = S.items.splice(i, 1);
+  S.items.splice(j, 0, it);
+  scheduleChannelOrder();
+  rerenderEdit(id);
+}
+async function removeChannel(it) {
+  const fav = S.tab === 'favorites';
+  try {
+    if (fav) { await send(`/api/p/${S.pid}/favorite`, { s: it.s, on: false }, 'POST'); S.favs.delete(it.s); }
+    else { await send(`/api/p/${S.pid}/customize`, { op: 'hide', ids: [it.s] }, 'POST'); S.hiddenCount++; }
+  } catch (e) { return toast('Couldn’t save that change'); }
+  S.items = S.items.filter((x) => x.s !== it.s);
+  S.total--;
+  if (!S.items.length) { S.edit = false; return renderList(); }
+  const r = list.querySelector(`.row[data-s="${it.s}"]`);
+  if (r) r.remove();
+  $('#count').textContent = fav ? `${S.total.toLocaleString()} favorite${S.total === 1 ? '' : 's'}` : `${S.total.toLocaleString()} channels${S.hiddenCount ? `, ${S.hiddenCount} hidden` : ''}`;
+  updateEditUi();
+  rerenderEdit();
+}
+function editRowEl(it) {
+  const li = el('li', 'row');
+  li.dataset.s = it.s;
+  const chan = el('div', 'chan');
+  const adm = S.me && S.me.role === 'admin';
+  const pick = el('span', 'pick static');
+  const logo = el('span', 'logo');
+  if (it.i) { const img = new Image(); img.loading = 'lazy'; img.decoding = 'async'; img.alt = ''; img.src = it.i; img.onerror = () => { img.remove(); logo.textContent = initials(it.n); }; logo.append(img); } else logo.textContent = initials(it.n);
+  pick.append(logo, el('span', 'nm', it.n));
+  if (adm) { pick.classList.add('tap'); pick.setAttribute('role', 'button'); pick.tabIndex = 0; pick.setAttribute('aria-label', `Guide for ${it.n}`); pick.addEventListener('click', () => guideOpen(it)); pick.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); guideOpen(it); } }); }
+  chan.append(pick);
+  const i = S.items.findIndex((x) => x.s === it.s), last = S.items.length - 1;
+  const ctl = el('div', 'ctl');
+  const mk = (label, aria, fn, off, cls) => { const b = el('button', cls || '', label); b.type = 'button'; b.setAttribute('aria-label', `${aria} ${it.n}`); b.disabled = !!off; b.addEventListener('click', fn); return b; };
+  ctl.append(
+    mk('Top', 'Move to top:', () => moveChannel(it.s, 'top'), i === 0),
+    mk('▲', 'Move up:', () => moveChannel(it.s, -1), i === 0),
+    mk('▼', 'Move down:', () => moveChannel(it.s, 1), i === last),
+    mk('Bottom', 'Move to bottom:', () => moveChannel(it.s, 'bottom'), i === last, 'bot'),
+    mk(matchMedia('(max-width:520px)').matches ? '✕' : S.tab === 'favorites' ? 'Remove' : 'Hide', S.tab === 'favorites' ? 'Remove from favorites:' : 'Hide', () => removeChannel(it), false, 'gone'));
+  li.append(chan, ctl);
+  return li;
+}
+
+/* Admin only: point a channel at another channel's guide listings (saved on the server, for everyone) */
+let guideFor = null, guideTimer = null;
+async function guideShow(j) {
+  $('#guideNow').textContent = !j.guide ? 'No guide data matched this channel.'
+    : `${j.how === 'link' ? 'Using a copied guide' : 'Matched by ' + (j.how === 'provider' ? 'the provider’s guide id' : j.how === 'name' ? 'name' : 'call sign')} (${j.guide}). ${j.now ? 'On now: ' + j.now : 'Nothing on right now.'}`;
+  $('#guideClearRow').hidden = j.how !== 'link';
+}
+async function guideOpen(it) {
+  guideFor = it;
+  $('#guideTitle').textContent = it.n;
+  $('#guideNow').textContent = 'Checking…';
+  $('#guideFind').value = '';
+  $('#guideResults').replaceChildren();
+  $('#guideClearRow').hidden = true;
+  openDialog($('#guideSheet'));
+  try { guideShow(await api(`/api/p/${S.pid}/epg-link?s=${it.s}`)); } catch (e) { $('#guideNow').textContent = e.message; }
+}
+async function guideApply(body, msg) {
+  try {
+    const j = await send(`/api/p/${S.pid}/epg-link`, Object.assign({ s: guideFor.s }, body), 'POST');
+    epgSeen.delete(S.pid + ':' + guideFor.s);
+    guideShow(j);
+    toast(msg);
+  } catch (e) { toast(e.message || 'Couldn’t save that change'); }
+}
+async function guideSearch() {
+  const q = $('#guideFind').value.trim(), box = $('#guideResults');
+  if (q.length < 2) return box.replaceChildren();
+  try {
+    const j = await api(`/api/p/${S.pid}/channels?q=${encodeURIComponent(q)}`);
+    if ($('#guideFind').value.trim() !== q) return;
+    box.replaceChildren();
+    for (const it of j.items.filter((x) => x.s !== guideFor.s).slice(0, 40)) {
+      const row = el('div', 'opt');
+      const b = el('button', 'btn', 'Use');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Use the guide from ' + it.n);
+      b.addEventListener('click', () => guideApply({ from: it.s }, `${guideFor.n} now uses the guide from ${it.n}`));
+      row.append(el('span', 'cname', it.n), b);
+      box.append(row);
+    }
+    if (!box.children.length) box.append(el('div', 'field', 'No channels found.'));
+  } catch (e) { box.replaceChildren(el('div', 'field', 'Couldn’t search: ' + e.message)); }
+}
+$('#guideFind').addEventListener('input', () => { clearTimeout(guideTimer); guideTimer = setTimeout(guideSearch, 250); });
+$('#guideClear').addEventListener('click', () => guideApply({ clear: true }, 'Back to the automatic guide match'));
+$('#btnEdit').addEventListener('click', async () => {
+  if (S.edit) { S.edit = false; await flushChannelOrder(); } else S.edit = true;
+  loadList();
+});
+$('#btnResetOrder').addEventListener('click', async () => {
+  try { await send(`/api/p/${S.pid}/customize`, { op: 'reset', cat: S.catId }, 'POST'); } catch { return toast('Couldn’t reset'); }
+  chanPending = null; clearTimeout(chanTimer);
+  toast('Order reset to the provider’s order');
+  loadList();
+});
+let hiddenChanged = false;
+$('#btnHiddenList').addEventListener('click', async () => {
+  hiddenChanged = false;
+  const box = $('#hiddenList');
+  box.replaceChildren(el('div', 'field', 'Loading'));
+  openDialog($('#hiddenSheet'));
+  try {
+    const j = await api(`/api/p/${S.pid}/channels?cat=${encodeURIComponent(S.catId)}&hidden=1`);
+    box.replaceChildren();
+    if (!j.items.length) box.append(el('div', 'field', 'Nothing is hidden in this group.'));
+    for (const it of j.items) {
+      const row = el('div', 'opt');
+      const b = el('button', 'btn', 'Show');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Show ' + it.n);
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try { await send(`/api/p/${S.pid}/customize`, { op: 'show', ids: [it.s] }, 'POST'); } catch { b.disabled = false; return toast('Couldn’t save that change'); }
+        row.remove(); hiddenChanged = true; S.hiddenCount = Math.max(0, S.hiddenCount - 1);
+        if (!box.children.length) box.append(el('div', 'field', 'Nothing is hidden in this group.'));
+      });
+      row.append(el('span', 'cname', it.n), b);
+      box.append(row);
+    }
+  } catch (e) { box.replaceChildren(el('div', 'field', 'Couldn’t load: ' + e.message)); }
+});
+$('#hiddenSheet').addEventListener('close', () => { if (hiddenChanged) { hiddenChanged = false; loadList(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushChannelOrder(); });
+
+async function toggleFav(it, star, li) {
+  const on = !S.favs.has(it.s);
+  on ? S.favs.add(it.s) : S.favs.delete(it.s);
+  star.textContent = on ? '★' : '☆';
+  star.setAttribute('aria-pressed', String(on));
+  try { await send(`/api/p/${S.pid}/favorite`, { s: it.s, on }, 'POST'); } catch (e) {
+    on ? S.favs.delete(it.s) : S.favs.add(it.s);
+    star.textContent = on ? '☆' : '★'; star.setAttribute('aria-pressed', String(!on));
+    return toast('Couldn’t save that favorite');
+  }
+  if (S.tab === 'favorites' && !on) { li.remove(); S.items = S.items.filter((x) => x.s !== it.s); S.total--; if (!S.items.length) renderList(); else $('#count').textContent = `${S.total.toLocaleString()} favorite${S.total === 1 ? '' : 's'}`; }
+}
+function markLive() {
+  list.querySelectorAll('.row.live').forEach((r) => r.classList.remove('live'));
+  const c = S.current;
+  if (c && c.p === S.pid && (S.starting || S.playing)) { const r = list.querySelector(`.row[data-s="${c.s}"]`); if (r) r.classList.add('live'); }
+}
+
+/* ---------------- Movies & Shows ---------------- */
+const SORTS = ['az', 'new', 'rating', 'year'];
+const V = { sel: null, sort: 'new', searchSort: 'best', items: [], total: 0, more: false, seq: 0, dseq: 0, cats: new Map(), open: new Set(), q: '', timer: null, rendered: 0 };
+function vodLoadSel() { V.sel = null; try { const s = JSON.parse(store.get('dock.vod.sel.' + S.pid)); if (s && (s.k === 'hist' || (s.k === 'list' && s.p === S.pid && s.kind))) V.sel = s; } catch { /* nothing saved */ } }
+{ const s = store.get('dock.vod.sort'); if (SORTS.includes(s)) V.sort = s; }
+const vodProvs = () => S.providers.filter((p) => p.type === 'xtream');
+const vodProv = () => { const p = S.pid && prov(); return p && p.type === 'xtream' ? p : null; };
+const vnorm = (pid, k, m) => ({ pid, k, id: m.id, n: m.n, y: m.y || '', r: m.r || 0, i: m.p || '', e: m.e || '', a: m.a || 0 });
+const sameTitle = (a, b) => a && b && a.pid === b.pid && a.k === b.k && a.id === b.id;
+const fmtDur = (sec) => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const epName = (t) => String(t || '').replace(/^.*?S\d+\s*E\d+\s*[-:]\s*/i, '').trim();
+
+/* what was watched on this device, newest first, with the place in it */
+const vodHist = {
+  key() { return 'dock.vod.hist.' + (S.me.name || ''); },
+  all() { try { const a = JSON.parse(store.get(this.key())); return Array.isArray(a) ? a.filter((x) => x && x.pid && x.id) : []; } catch { return []; } },
+  find(it) { return this.all().find((x) => sameTitle(x, it)); },
+  put(e) { const a = this.all().filter((x) => !sameTitle(x, e)); a.unshift(e); store.set(this.key(), JSON.stringify(a.slice(0, 30))); },
+  drop(it) { store.set(this.key(), JSON.stringify(this.all().filter((x) => !sameTitle(x, it)))); },
+  clear() { store.set(this.key(), '[]'); }
+};
+
+function updateVodTab() {
+  const on = !!vodProv();
+  $('#tabVod').hidden = !on;
+  if (!on && S.tab === 'vod') setTab('channels');
+  if (on && V.selPid !== S.pid) { V.selPid = S.pid; V.q = ''; $('#vodSearch').value = ''; V.cats.clear(); vodLoadSel(); if (S.tab === 'vod') loadVod(); }
+}
+function vodMessage(title, body, label, fn) {
+  const m = $('#vodMsg');
+  m.replaceChildren(el('strong', '', title));
+  if (body) m.append(el('p', '', body));
+  if (label) { const b = el('button', 'btn primary', label); b.type = 'button'; b.addEventListener('click', fn); m.append(b); }
+  m.hidden = false; $('#vodGrid').replaceChildren(); V.rendered = 0;
+}
+function vodCard(it) {
+  const c = el('button', 'vcard'); c.type = 'button'; c.setAttribute('aria-label', it.n + (it.y ? ` (${it.y})` : ''));
+  const p = el('div', 'vposter');
+  const ini = () => p.append(el('span', 'vini', initials(it.n)));
+  if (it.i) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.decoding = 'async'; im.onerror = () => { im.remove(); ini(); }; im.src = it.i; p.append(im); } else ini();
+  if (it.dur && it.pos > 5) { const b = el('div', 'vprog'), i = el('i'); i.style.width = Math.min(100, (it.pos / it.dur) * 100) + '%'; b.append(i); p.append(b); }
+  c.append(p, el('div', 'vtitle', it.n), el('div', 'vsub', [it.k === 'show' ? 'Show' : 'Movie', it.y, ''].filter(Boolean).join(' · ')));
+  c.addEventListener('click', () => vodOpen(it));
+  return c;
+}
+function paintVodMore() {
+  const frag = document.createDocumentFragment();
+  for (; V.rendered < V.items.length; V.rendered++) frag.append(vodCard(V.items[V.rendered]));
+  $('#vodGrid').append(frag);
+}
+function paintVod() { $('#vodMsg').hidden = true; $('#vodGrid').replaceChildren(); V.rendered = 0; $('#vodWrap').scrollTop = 0; paintVodMore(); }
+const vodLabel = () => (V.q ? `Search: “${V.q}”` : V.sel ? (V.sel.k === 'hist' ? 'Continue watching' : V.sel.label || '') : '');
+function updateVodBar() {
+  const s = V.sel;
+  $('#vodCatBtn span').textContent = s ? (s.k === 'hist' ? 'Continue watching' : String(s.label || '').split(': ').pop()) : 'Choose a list';
+  const sort = $('#vodSort');
+  sort.querySelector('option[value=best]').hidden = !V.q;
+  sort.value = V.q ? V.searchSort : V.sort;
+  sort.disabled = !V.q && !!s && s.k === 'hist';
+  $('#vodCount').textContent = V.items.length || V.total ? `${vodLabel()}  ·  ${V.total.toLocaleString()} title${V.total === 1 ? '' : 's'}` : vodLabel();
+}
+async function loadVod() {
+  const seq = ++V.seq;
+  V.items = []; V.total = 0; V.more = false; V.rendered = 0;
+  updateVodBar();
+  if (!vodProv()) return vodMessage('No movies here', 'This provider doesn’t offer movies or shows.');
+  if (V.q) return vodSearchRun(seq);
+  const s = V.sel;
+  if (!s) return vodMessage('Pick a list', 'Choose Movies or Shows and a category, or search by title.', 'Choose a list', openVodCats);
+  if (s.k === 'hist') {
+    let all = vodHist.all();
+    if (S.adult.on && !S.adult.open && all.length) { // titles in locked categories drop out of the list until the PIN is entered
+      try {
+        const held = await api(`/api/p/${S.pid}/vod-held`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ movie: all.filter((h) => h.k === 'movie').map((h) => h.id), show: all.filter((h) => h.k === 'show').map((h) => h.id) }) });
+        all = all.filter((h) => !(held[h.k] || []).includes(h.id));
+      } catch { /* show the list as it is; opening a locked title is refused anyway */ }
+      if (seq !== V.seq) return;
+    }
+    V.items = all.map((h) => ({ pid: h.pid, k: h.k, id: h.id, n: h.n, y: '', r: 0, i: h.i || '', e: h.ext || '', pos: h.t || 0, dur: h.d || 0 }));
+    V.total = V.items.length; updateVodBar();
+    if (!V.items.length) return vodMessage('Nothing watched yet', 'Movies and shows you start show up here so you can pick up where you left off.');
+    return paintVod();
+  }
+  vodMessage('Loading…', 'The first time can take a minute for a big list.');
+  await vodMore(seq);
+}
+async function vodMore(seq0) {
+  const s = V.sel, seq = seq0 || V.seq;
+  if (V.q || !s || s.k !== 'list' || V.more) return;
+  if (V.items.length && V.items.length >= V.total) return;
+  V.more = true;
+  try {
+    const j = await api(`/api/p/${s.p}/vod-list?kind=${s.kind}&cat=${encodeURIComponent(s.cat || '')}&sort=${V.sort}&off=${V.items.length}&lim=60`);
+    if (seq !== V.seq) return;
+    if (j.locked) return vodMessage('This category is locked', 'Enter your PIN to see its titles.', 'Enter PIN', async () => { if (await needPin()) { await refreshAdult(false); loadVod(); } });
+    V.total = j.total; for (const m of j.items) V.items.push(vnorm(s.p, s.kind, m));
+    updateVodBar();
+    if (!V.items.length) return vodMessage('Nothing here', 'This list is empty.');
+    if (V.rendered === 0) paintVod(); else paintVodMore();
+  } catch (e) {
+    if (e.status === 401) return;
+    if (seq === V.seq && !V.items.length) vodMessage('Couldn’t load this list', e.message, 'Try again', () => loadVod());
+  } finally { if (seq === V.seq) V.more = false; }
+}
+$('#vodWrap').addEventListener('scroll', () => { const w = $('#vodWrap'); if (w.scrollTop + w.clientHeight > w.scrollHeight - 600) vodMore(); }, { passive: true });
+
+/* search covers every provider that has movies and shows, and nothing else */
+function vodSortSearch() {
+  const needle = V.q.toLowerCase();
+  const rank = (m) => { const n = m.n.toLowerCase(); return n.startsWith(needle) ? 0 : n.includes(' ' + needle) ? 1 : 2; };
+  const yr = (m) => parseInt(m.y, 10) || 0;
+  const cmp = {
+    best: (a, b) => rank(a) - rank(b) || a.n.length - b.n.length,
+    az: (a, b) => a.n.localeCompare(b.n),
+    rating: (a, b) => b.r - a.r || a.n.localeCompare(b.n),
+    year: (a, b) => yr(b) - yr(a) || a.n.localeCompare(b.n),
+    new: (a, b) => b.a - a.a || a.n.localeCompare(b.n)
+  }[V.searchSort] || ((a, b) => 0);
+  V.items.sort(cmp);
+}
+async function vodSearchRun(seq) {
+  const q = V.q, enc = encodeURIComponent(q);
+  vodMessage('Searching…');
+  const res = await Promise.all([vodProv()].filter(Boolean).flatMap((p) => ['movie', 'show'].map((k) => api(`/api/p/${p.id}/vod-list?kind=${k}&q=${enc}&lim=60`).then((j) => j.items.map((m) => vnorm(p.id, k, m))).catch(() => []))));
+  if (seq !== V.seq) return;
+  V.items = [].concat(...res); V.total = V.items.length; vodSortSearch(); updateVodBar();
+  if (!V.items.length) return vodMessage('Nothing matches', `No movie or show matches “${q}”. Try fewer words.`);
+  paintVod();
+}
+$('#vodSearch').addEventListener('input', () => {
+  clearTimeout(V.timer);
+  V.timer = setTimeout(() => {
+    const q = $('#vodSearch').value.trim(), next = q.length >= 2 ? q : '';
+    if (next === V.q) return;
+    V.q = next; V.searchSort = 'best'; loadVod();
+  }, 350);
+});
+$('#vodSort').addEventListener('change', () => {
+  const v = $('#vodSort').value;
+  if (V.q) { V.searchSort = v; vodSortSearch(); paintVod(); return; }
+  V.sort = v; store.set('dock.vod.sort', v); loadVod();
+});
+
+/* the category sheet: Continue watching, then each provider's movies and shows with their categories */
+async function vodCatsFor(p) {
+  const have = V.cats.get(p.id); if (have && !have.err) return;
+  V.cats.set(p.id, { loading: true });
+  try {
+    const j = await api(`/api/p/${p.id}/vod-cats`);
+    V.cats.set(p.id, j.supported === false ? { movies: [], shows: [], mt: 0, st: 0 } : { movies: j.movies || [], shows: j.shows || [], mt: j.movieTotal || 0, st: j.showTotal || 0, err: j.movieError && j.showError ? 'the provider did not answer' : '' });
+  } catch (e) { V.cats.set(p.id, { err: e.message }); }
+  if ($('#vodCatSheet').open) renderVodCats();
+}
+async function openVodCats() {
+  $('#vodCatFilter').value = '';
+  renderVodCats(); openDialog($('#vodCatSheet'));
+  await vodCatsFor(vodProv());
+}
+function renderVodCats() {
+  const body = $('#vodCatBody'), q = $('#vodCatFilter').value.trim().toLowerCase(), many = false;
+  body.replaceChildren();
+  const cur = (p, kind, cat) => V.sel && V.sel.k === 'list' && V.sel.p === p && V.sel.kind === kind && (V.sel.cat || '') === cat;
+  const pick = (sel) => { V.sel = sel; store.set('dock.vod.sel.' + S.pid, JSON.stringify(sel)); $('#vodSearch').value = ''; V.q = ''; closeDialog($('#vodCatSheet')); loadVod(); };
+  const row = (label, count, on, fn) => { const b = el('button', 'opt'); b.type = 'button'; if (on) b.setAttribute('aria-current', 'true'); b.append(el('span', 'cname', label), el('span', 'ccount', count == null ? '' : count.toLocaleString())); b.addEventListener('click', fn); return b; };
+  if (!q) body.append(row('Continue watching', vodHist.all().length, V.sel && V.sel.k === 'hist', () => pick({ k: 'hist' })));
+  for (const p of [vodProv()].filter(Boolean)) {
+    const c = V.cats.get(p.id);
+    if (false) body.append(el('div', 'vhead', p.name));
+    if (!c || c.loading) { body.append(el('div', 'field', 'Loading the list. The first time can take a minute.')); continue; }
+    if (c.err) { const f = el('div', 'field', `Couldn’t load ${p.name}: ${c.err} `); const b = el('button', 'btn sm', 'Try again'); b.type = 'button'; b.addEventListener('click', () => vodCatsFor(p)); f.append(b); body.append(f); continue; }
+    for (const [kind, label, cats, total] of [['movie', 'Movies', c.movies, c.mt], ['show', 'Shows', c.shows, c.st]]) {
+      if (!cats || !cats.length) continue;
+      const shown = q ? cats.filter((x) => x.name.toLowerCase().includes(q)) : cats;
+      if (q && !shown.length) continue;
+      const key = p.id + '|' + kind, d = document.createElement('details'), sm = document.createElement('summary');
+      d.open = !!q || V.open.has(key) || cur(p.id, kind, '') || !!(V.sel && V.sel.k === 'list' && V.sel.p === p.id && V.sel.kind === kind);
+      sm.append(el('span', 'cname', label), el('span', 'ccount', total.toLocaleString()));
+      sm.addEventListener('click', () => setTimeout(() => { if (d.open) V.open.add(key); else V.open.delete(key); }, 0));
+      d.append(sm);
+      const pre = many ? p.name + ': ' : '';
+      if (!q) d.append(row('All ' + label.toLowerCase(), total, cur(p.id, kind, ''), () => pick({ k: 'list', p: p.id, kind, cat: '', label: `${pre}All ${label.toLowerCase()}` })));
+      for (const cat of shown) d.append(row(lockMark(cat) + cat.name, cat.count, cur(p.id, kind, cat.id), async () => {
+        if (cat.lock && !S.adult.open && !(await needPin())) return; // Back leaves you in the list of categories
+        pick({ k: 'list', p: p.id, kind, cat: cat.id, label: `${pre}${cat.name}` });
+      }));
+      body.append(d);
+    }
+  }
+  if (!body.childNodes.length) body.append(el('div', 'field', 'No category matches that filter.'));
+}
+$('#vodCatBtn').addEventListener('click', openVodCats);
+
+/* choose which movie and show categories you want: tick to include, like the channel groups */
+const VP = { cats: { movie: [], show: [] }, sel: { movie: new Set(), show: new Set() }, was: { movie: '', show: '' } };
+const vpKey = (set) => [...set].sort().join('\u0001');
+async function openVodPick() {
+  const p = vodProv(); if (!p) return;
+  $('#vodPickBody').replaceChildren(el('div', 'field', 'Loading the list. The first time can take a minute.'));
+  $('#vodPickFilter').value = ''; $('#vpOnly').checked = false; $('#vodPickSave').disabled = true;
+  closeDialog($('#vodCatSheet')); openDialog($('#vodPickSheet'));
+  try {
+    const j = await api(`/api/p/${p.id}/vod-cats?all=1`);
+    for (const [kind, k2] of [['movie', 'movies'], ['show', 'shows']]) {
+      VP.cats[kind] = j[k2] || [];
+      VP.sel[kind] = new Set(j[kind + 'Sel'] || VP.cats[kind].map((c) => c.id)); // nothing chosen yet means everything shows
+      VP.was[kind] = vpKey(VP.sel[kind]);
+    }
+    renderVodPick();
+  } catch (e) { $('#vodPickBody').replaceChildren(el('div', 'field', 'Couldn’t load the categories: ' + e.message)); }
+}
+function renderVodPick() {
+  const body = $('#vodPickBody'); body.replaceChildren();
+  for (const [kind, label] of [['movie', 'Movies'], ['show', 'Shows']]) {
+    if (!VP.cats[kind].length) continue;
+    body.append(el('div', 'vhead', label));
+    for (const c of VP.cats[kind]) {
+      const lab = el('label', 'cat'); lab.dataset.name = c.name.toLowerCase(); lab.dataset.kind = kind;
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = c.id; cb.checked = VP.sel[kind].has(c.id);
+      lab.append(cb, el('span', 'cname', (c.lock ? '🔒 ' : '') + c.name), el('span', 'ccount', c.count.toLocaleString()));
+      body.append(lab);
+    }
+  }
+  updateVodPick();
+}
+function updateVodPick() {
+  const n = (k) => VP.sel[k].size, t = (k) => VP.cats[k].length;
+  $('#vodPickSummary').textContent = `Movies: ${n('movie')} of ${t('movie')} categories. Shows: ${n('show')} of ${t('show')}.`;
+  $('#vodPickSave').disabled = vpKey(VP.sel.movie) === VP.was.movie && vpKey(VP.sel.show) === VP.was.show;
+}
+function applyVodPickFilter() {
+  const q = $('#vodPickFilter').value.trim().toLowerCase(), only = $('#vpOnly').checked;
+  for (const lab of $('#vodPickBody').querySelectorAll('label.cat')) lab.hidden = !((!q || lab.dataset.name.includes(q)) && (!only || lab.firstChild.checked));
+}
+$('#vodPickBtn').addEventListener('click', openVodPick);
+$('#vodPickBack').addEventListener('click', () => { closeDialog($('#vodPickSheet')); openVodCats(); });
+$('#vodPickFilter').addEventListener('input', () => { clearTimeout(applyVodPickFilter.t); applyVodPickFilter.t = setTimeout(applyVodPickFilter, 150); });
+$('#vpOnly').addEventListener('change', applyVodPickFilter);
+$('#vodPickBody').addEventListener('change', (e) => { const cb = e.target, kind = cb.parentNode.dataset.kind; if (!kind) return; cb.checked ? VP.sel[kind].add(cb.value) : VP.sel[kind].delete(cb.value); updateVodPick(); });
+function vpSetShown(on) {
+  for (const lab of $('#vodPickBody').querySelectorAll('label.cat')) { if (lab.hidden) continue; const cb = lab.firstChild, set = VP.sel[lab.dataset.kind]; cb.checked = on; on ? set.add(cb.value) : set.delete(cb.value); }
+  updateVodPick();
+}
+$('#vpAll').addEventListener('click', () => vpSetShown(true));
+$('#vpNone').addEventListener('click', () => vpSetShown(false));
+$('#vodPickSave').addEventListener('click', async () => {
+  const btn = $('#vodPickSave'), p = vodProv();
+  btn.disabled = true; btn.textContent = 'Saving';
+  try {
+    for (const kind of ['movie', 'show']) {
+      if (vpKey(VP.sel[kind]) === VP.was[kind]) continue;
+      const everything = VP.cats[kind].every((c) => VP.sel[kind].has(c.id)); // all ticked is the same as never having chosen
+      await send(`/api/p/${p.id}/vod-groups`, { kind, groups: everything ? null : [...VP.sel[kind]] }, 'PUT');
+    }
+    V.cats.clear();
+    if (V.sel && V.sel.k === 'list' && V.sel.cat && !VP.sel[V.sel.kind].has(V.sel.cat)) { V.sel = null; store.set('dock.vod.sel.' + S.pid, 'null'); }
+    closeDialog($('#vodPickSheet')); toast('Saved'); loadVod();
+  } catch (e) { toast('Couldn’t save: ' + e.message); updateVodPick(); }
+  btn.textContent = 'Save categories';
+});
+$('#vodCatFilter').addEventListener('input', renderVodCats);
+
+/* a title: poster, details, and for a show the seasons and episodes */
+async function vodOpen(it) {
+  const body = $('#vodDetailBody'), seq = ++V.dseq;
+  $('#vodDetailTitle').textContent = it.n;
+  body.replaceChildren(el('div', 'field', 'Loading…'));
+  openDialog($('#vodDetail'));
+  try {
+    const info = await api(`/api/p/${it.pid}/vod-info?kind=${it.k}&id=${encodeURIComponent(it.id)}`);
+    if (seq === V.dseq) paintVodDetail(it, info);
+  } catch (e) { if (seq === V.dseq) body.replaceChildren(el('div', 'field', 'Couldn’t load the details: ' + e.message)); }
+}
+function paintVodDetail(it, info) {
+  const body = $('#vodDetailBody'); body.replaceChildren();
+  const pic = info.p || it.i, hist = vodHist.find(it);
+  $('#vodDetailTitle').textContent = it.n || info.n;
+  const left = el('div', 'vposter');
+  const ini = () => left.append(el('span', 'vini', initials(it.n)));
+  if (pic) { const im = new Image(); im.alt = ''; im.onerror = () => { im.remove(); ini(); }; im.src = pic; left.append(im); } else ini();
+  const right = el('div');
+  const meta = [it.k === 'show' ? 'Show' : 'Movie', info.y || it.y, info.mins ? info.mins + ' min' : '', info.r ? '★ ' + info.r : '', info.genre].filter(Boolean).join(' · ');
+  right.append(el('div', 'vmeta', meta));
+  const who = [info.director ? 'Directed by ' + info.director : '', info.cast ? 'With ' + info.cast : ''].filter(Boolean).join(' · ');
+  if (who) right.append(el('div', 'vcast', who));
+  if (info.plot) right.append(el('p', 'vplot', info.plot));
+  const btns = el('div', 'vbtns'); right.append(btns);
+  const vd = el('div', 'vd'); vd.append(left, right); body.append(vd);
+  const base = { pid: it.pid, k: it.k, id: it.id, n: it.n || info.n, i: pic };
+  const mk = (label, primary, fn) => { const b = el('button', 'btn' + (primary ? ' primary' : ''), label); b.type = 'button'; b.addEventListener('click', fn); btns.append(b); };
+  if (it.k === 'movie') {
+    const en = Object.assign({}, base, { e: info.e || it.e });
+    if (hist && hist.t > 30) { mk('Resume ' + fmtDur(hist.t), true, () => vodPlay(en, hist.t)); mk('Start over', false, () => vodPlay(en, 0)); } else mk('Play', true, () => vodPlay(en, 0));
+    if (S.me && S.me.rec) mk('Download', false, () => dlQueue({ p: it.pid, kind: 'movie', id: it.id, ext: info.e || it.e || 'mp4', title: info.n || it.n, year: info.y, mins: info.mins }));
+    return;
+  }
+  const eps = [];
+  for (const sn of info.seasons || []) for (const e of sn.eps) eps.push({ id: e.id, s: sn.s, n: e.n, t: epName(e.t), e: e.e, mins: e.mins });
+  if (!eps.length) { btns.append(el('div', 'vmeta', 'No episodes are listed for this show.')); return; }
+  const go = (ep, at) => vodPlay(Object.assign({}, base, { ep, eps }), at);
+  const last = hist && hist.ep && eps.find((e) => e.id === hist.ep.id);
+  const label = (e) => `S${e.s} E${e.n}`;
+  if (last && hist.t > 30) { mk(`Resume ${label(last)} ${fmtDur(hist.t)}`, true, () => go(last, hist.t)); mk('Start over', false, () => go(last, 0)); } else mk('Play ' + label(eps[0]), true, () => go(eps[0], 0));
+  const seasons = [...new Set(eps.map((e) => e.s))];
+  const dlEp = (e) => ({ p: it.pid, kind: 'show', id: e.id, ext: e.e || 'mp4', title: info.n || it.n, season: e.s, ep: e.n, epTitle: e.t, mins: e.mins });
+  const wrap = el('div'), bar = el('div', 'vseason'), list = el('div');
+  const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Season');
+  for (const sn of seasons) { const o = document.createElement('option'); o.value = sn; o.textContent = seasons.length === 1 && !sn ? 'Episodes' : 'Season ' + sn; sel.append(o); }
+  sel.value = String(last ? last.s : seasons[0]);
+  const paint = () => {
+    list.replaceChildren();
+    for (const e of eps.filter((x) => String(x.s) === sel.value)) {
+      const row = el('div', 'eprow'), b = el('button', 'opt'); b.type = 'button';
+      const l = el('span', 'cname', `${e.n}.  ${e.t || 'Episode ' + e.n}`);
+      b.append(l, el('span', 'ccount', e.mins ? e.mins + ' min' : ''));
+      if (hist && hist.ep && hist.ep.id === e.id && hist.t > 30 && hist.d) { const g = el('span', 'eprog'), i = el('i'); i.style.width = Math.min(100, (hist.t / hist.d) * 100) + '%'; g.append(i); l.append(g); }
+      b.addEventListener('click', () => go(e, hist && hist.ep && hist.ep.id === e.id ? hist.t : 0));
+      row.append(b);
+      if (S.me && S.me.rec) { const d = el('button', 'dlb', '⇩'); d.type = 'button'; d.title = 'Download this episode'; d.setAttribute('aria-label', 'Download ' + (e.t || 'episode ' + e.n)); d.addEventListener('click', () => dlQueue(dlEp(e))); row.append(d); }
+      list.append(row);
+    }
+  };
+  sel.addEventListener('change', paint);
+  if (seasons.length > 1) bar.append(sel); else bar.append(el('span', 'vmeta', seasons[0] ? 'Season ' + seasons[0] : 'Episodes'));
+  if (S.me && S.me.rec) { const sb = el('button', 'btn', 'Download season'); sb.type = 'button'; sb.addEventListener('click', async () => { const list2 = eps.filter((x) => String(x.s) === sel.value); let n = 0; for (const e of list2) if (await dlQueue(dlEp(e), true)) n++; toast(`${n} episode${n === 1 ? '' : 's'} added to Downloads`); }); bar.append(sb); }
+  wrap.append(bar, list); body.append(wrap); paint();
+}
+
+
+/* ---------------- downloads and recordings ---------------- */
+async function dlQueue(body, quiet) {
+  try { const r = await send('/api/downloads', body, 'POST'); if (!quiet) toast(r.again ? 'Already downloaded or on its way' : 'Added to Downloads'); return true; }
+  catch (e) { toast(e.message); return false; }
+}
+const fmtSize = (b) => (b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB');
+let savedTimer = 0;
+function savedPlay(kind, it, at) {
+  closeDialog($('#savedSheet'));
+  vodPlay({ pid: kind, k: kind, id: it.id, n: it.title || it.ch, i: '', ext: 'mp4', ep: null, rec: kind === 'dl' ? 'dl' : 'rec', url: kind === 'dl' ? '/dl/' + encodeURIComponent(it.id) : '/rec/' + encodeURIComponent(it.id) + '.mp4' }, at || 0);
+}
+async function savedPaint() {
+  const box = $('#savedList');
+  let dls = { items: [], ready: false }, recs = { items: [], ready: false };
+  try { [dls, recs] = await Promise.all([api('/api/downloads'), api('/api/recordings')]); } catch (e) { box.replaceChildren(el('div', 'field', 'Couldn’t load: ' + e.message)); return; }
+  const frag = document.createDocumentFragment();
+  const row = (kind, it) => {
+    const r = el('div', 'srow2'), title = it.title || it.ch;
+    r.append(el('b', '', title));
+    const busy = kind === 'dl' ? (it.state === 'downloading' || it.state === 'waiting') : (it.state === 'recording' || it.state === 'finishing');
+    const state = kind === 'dl'
+      ? (it.state === 'downloading' ? (it.total ? Math.round((it.size / it.total) * 100) + '% of ' + fmtSize(it.total) : fmtSize(it.size)) : it.state === 'waiting' ? 'Waiting for its turn' : it.state === 'failed' ? 'Failed: ' + (it.err || '') : it.state === 'stopped' ? 'Stopped' : fmtSize(it.size))
+      : [new Date(it.at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }), fmtDur(it.dur), it.state === 'recording' ? '● recording' : it.state === 'finishing' ? 'finishing…' : it.state === 'unfinished' ? 'couldn’t be converted' : it.size ? fmtSize(it.size) : ''].filter(Boolean).join(' · ');
+    r.append(el('small', '', (kind === 'rec' && it.title ? it.ch + ' · ' : '') + state));
+    if (kind === 'dl' && it.state === 'downloading' && it.total) { const g = el('div', 'sprog'), i = el('i'); i.style.width = Math.min(100, (it.size / it.total) * 100) + '%'; g.append(i); r.append(g); }
+    const b = el('div', 'vbtns');
+    const mk = (label, primary, fn) => { const x = el('button', 'btn' + (primary ? ' primary' : ''), label); x.type = 'button'; x.addEventListener('click', fn); b.append(x); };
+    const playable = kind === 'dl' ? it.state === 'done' : it.state === 'done';
+    if (playable) {
+      const part = it.pos > 30 && it.dur && it.pos < it.dur - 30;
+      if (part) { mk('Resume ' + fmtDur(it.pos), true, () => savedPlay(kind, it, it.pos)); mk('Start over', false, () => savedPlay(kind, it, 0)); } else mk('Play', true, () => savedPlay(kind, it, 0));
+      const a = el('a', 'btn', 'Save to this device'); a.href = (kind === 'dl' ? '/dl/' + encodeURIComponent(it.id) : '/rec/' + encodeURIComponent(it.id) + '.mp4') + '?save=1'; a.setAttribute('download', ''); b.append(a);
+    }
+    if (kind === 'dl' && (it.state === 'failed' || it.state === 'stopped')) mk('Try again', true, async () => { try { await send('/api/downloads/' + encodeURIComponent(it.id) + '/retry', {}, 'POST'); } catch (e) { toast(e.message); } savedPaint(); });
+    if (kind === 'rec' && it.state === 'recording') mk('Stop recording', false, async () => { const k = it.key || '', i = k.lastIndexOf('-'); try { await send('/api/recordings/stop', { p: k.slice(0, i), s: k.slice(i + 1) }, 'POST'); } catch (e) { toast(e.message); } setTimeout(savedPaint, 1500); });
+    if (!(kind === 'rec' && (it.state === 'recording' || it.state === 'finishing'))) mk(busy ? 'Cancel' : 'Delete', false, async () => {
+      if (!confirm(busy ? `Cancel “${title}”? What has come down is removed.` : `Delete “${title}”? This can’t be undone.`)) return;
+      try { await send((kind === 'dl' ? '/api/downloads/' : '/api/recordings/') + encodeURIComponent(it.id), {}, 'DELETE'); } catch (e) { toast(e.message); } savedPaint();
+    });
+    r.append(b); return r;
+  };
+  const section = (name, ready, items, kind, empty) => {
+    frag.append(el('h3', '', name));
+    if (!ready) frag.append(el('div', 'field', 'Needs a folder. An admin can map a share to /recordings.'));
+    else if (!items.length) frag.append(el('div', 'field', empty));
+    for (const it of items) frag.append(row(kind, it));
+  };
+  section('Downloads', dls.ready, dls.items, 'dl', 'Nothing downloaded yet. Open a movie or show and choose Download.');
+  section('Recordings', recs.ready, recs.items, 'rec', 'Nothing recorded yet. Recording is started from the TV while watching live TV with rewind on.');
+  box.replaceChildren(frag);
+  clearTimeout(savedTimer);
+  if ($('#savedSheet').open && (dls.items.some((x) => x.state === 'downloading' || x.state === 'waiting') || recs.items.some((x) => x.state === 'recording'))) savedTimer = setTimeout(savedPaint, 5000);
+}
+$('#savedBtn').addEventListener('click', () => { openDialog($('#savedSheet')); $('#savedList').replaceChildren(el('div', 'field', 'Loading…')); savedPaint(); });
+$('#savedSheet').addEventListener('close', () => clearTimeout(savedTimer));
+
+/* playing a title in the same player the channels use */
+function vodPlay(en, at) {
+  closeDialog($('#vodDetail'));
+  clearTimers(); S.playSeq = (S.playSeq || 0) + 1;
+  if (S.current && (S.starting || S.playing)) stopServer(S.current);
+  teardownPlayer();
+  S.current = null; S.epg = []; S.starting = true;
+  const ext = (en.ep ? en.ep.e : en.e) || 'mp4', id = en.ep ? en.ep.id : en.id;
+  S.vod = Object.assign({}, en, { ext, at: at || 0, saved: 0, seeked: false });
+  markLive(); renderNow();
+  showOverlay('Loading', en.n, true);
+  video.controls = true;
+  video.src = en.url || `/vod/${en.pid}/${en.k === 'show' ? 'show' : 'movie'}/${encodeURIComponent(id)}.${ext}`;
+  const p = video.play(); if (p && p.catch) p.catch((e) => readyOverlay(e));
+}
+function renderNowVod() {
+  const v = S.vod, logo = $('#nowLogo');
+  logo.replaceChildren();
+  if (v.i) { const img = new Image(); img.alt = ''; img.src = v.i; img.onerror = () => { img.remove(); logo.textContent = initials(v.n); }; logo.append(img); } else logo.textContent = initials(v.n);
+  $('#nowName').textContent = v.n;
+  $('#nowProg').textContent = v.ep ? `Season ${v.ep.s}, episode ${v.ep.n}${v.ep.t ? ': ' + v.ep.t : ''}` : 'Movie';
+  $('#bar').hidden = true;
+  const live = S.starting || S.playing, b = $('#btnPlay');
+  b.hidden = false; b.textContent = live ? 'Stop' : 'Resume'; b.classList.toggle('resume', !live);
+}
+function vodSave(done) {
+  const v = S.vod; if (!v) return;
+  v.saved = Date.now();
+  const t = video.currentTime || 0, d = video.duration || 0;
+  if (v.rec) { if (t >= 5 || done) send((v.rec === 'dl' ? '/api/downloads/' : '/api/recordings/') + encodeURIComponent(v.id) + '/pos', { t: done || (d > 60 && t > d - 30) ? 0 : Math.floor(t) }, 'PUT').catch(() => {}); return; }
+  if (!v.seeked && v.at > 5) return; // still starting: keep the saved place
+  const finished = done || (d > 60 && t > d - Math.max(60, d * 0.04));
+  v.at = finished ? 0 : Math.floor(t);
+  if (v.k === 'movie' && finished) return vodHist.drop(v);
+  if (!finished && t < 5 && !vodHist.find(v)) return;
+  vodHist.put({ pid: v.pid, k: v.k, id: v.id, n: v.n, i: v.i || '', ext: v.ext, t: v.at, d: Math.floor(d), ep: v.ep ? { id: v.ep.id, s: v.ep.s, n: v.ep.n, t: v.ep.t, e: v.ep.e } : null });
+}
+function vodStop() {
+  vodSave();
+  S.starting = false; teardownPlayer();
+  renderNow(); showOverlay('Stopped', 'Tap Resume to carry on.');
+}
+async function vodError() {
+  const v = S.vod; if (!v || S.tearing) return;
+  const code = video.error ? video.error.code : 0, src = video.currentSrc || video.src;
+  if (video.currentTime) { vodSave(); S.starting = false; S.playing = false; renderNow(); return showOverlay('Playback stopped', 'The connection may have dropped. Tap Resume to try again.'); }
+  let st = 0, ct = '';
+  try { const r = await fetch(src, { headers: { Range: 'bytes=0-0' } }); st = r.status; ct = r.headers.get('content-type') || ''; if (r.body && r.body.cancel) r.body.cancel(); } catch { st = -1; }
+  if (S.vod !== v) return;
+  S.starting = false; S.playing = false; renderNow();
+  if (st === -1) return showOverlay('Couldn’t reach the server', 'Check your connection, then tap Resume.');
+  if (st >= 400 || /html|json|text|xml/i.test(ct)) return showOverlay('The provider didn’t send this file', st >= 400 ? `It may be missing on their server (error ${st}). Try another title.` : 'It sent a web page instead of a video. Try another title.');
+  showOverlay('This browser can’t play this file’s format', code === 3 ? 'The video or sound couldn’t be decoded here.' : 'The video or sound format isn’t supported here.');
+}
+video.addEventListener('loadedmetadata', () => {
+  const v = S.vod; if (!v || v.seeked) return;
+  v.seeked = true;
+  if (v.at > 5) { try { video.currentTime = Math.min(v.at, Math.max(0, (video.duration || v.at + 6) - 5)); } catch { /* not seekable yet */ } }
+});
+/* behind live: a "Go live" button appears, and goes when you are back at the edge */
+function behindLive() { const sk = video.seekable; return S.rw && !S.vod && sk && sk.length ? Math.max(0, sk.end(sk.length - 1) - video.currentTime) : 0; }
+video.addEventListener('timeupdate', () => { $('#btnLive').hidden = !(S.rw && !S.vod && (S.playing || S.starting) && behindLive() > 8); });
+$('#btnLive').addEventListener('click', () => { const sk = video.seekable; if (sk && sk.length) video.currentTime = Math.max(sk.start(0), sk.end(sk.length - 1) - 1); if (video.paused) video.play().catch(() => {}); $('#btnLive').hidden = true; });
+video.addEventListener('timeupdate', () => { const v = S.vod; if (v && !S.tearing && v.seeked && Date.now() - v.saved > 8000) vodSave(); });
+video.addEventListener('ended', () => {
+  const v = S.vod; if (!v) return;
+  if (v.k === 'show' && v.eps) {
+    const i = v.eps.findIndex((e) => e.id === v.ep.id), next = v.eps[i + 1];
+    if (next) { vodHist.put({ pid: v.pid, k: v.k, id: v.id, n: v.n, i: v.i || '', ext: next.e, t: 0, d: 0, ep: { id: next.id, s: next.s, n: next.n, t: next.t, e: next.e } }); return vodPlay(Object.assign({}, v, { ep: next }), 0); }
+  }
+  vodSave(true); S.playing = false; S.starting = false; renderNow(); showOverlay('Finished', v.n);
+});
+
+/* ---------------- tabs, groups, search ---------------- */
+function setTab(tab) {
+  if (!S.pid && tab === 'manage') tab = 'channels';
+  if (S.edit) { S.edit = false; flushChannelOrder(); }
+  S.tab = tab;
+  document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  $('#paneManage').hidden = tab !== 'manage';
+  if (tab === 'manage' && prov()) $('#manageTop p').textContent = `Tick the groups you want from ${prov().name}. Every channel in a ticked group shows up in Channels.`;
+  $('#app').classList.toggle('managing', tab === 'manage'); // phones: Manage gets the whole screen
+  $('#paneList').style.display = tab === 'manage' || tab === 'vod' ? 'none' : 'flex';
+  $('#paneVod').style.display = tab === 'vod' ? 'flex' : 'none';
+  $('#toolbar').hidden = tab !== 'channels';
+  if (tab === 'vod') loadVod(); else if (tab !== 'manage') loadList();
+}
+document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+const ALL = '__all__'; // "All channels": every ticked group together, so no group has to be picked
+function updateGroupBtn() {
+  const c = S.cats.get(S.catId);
+  $('#groupBtn span').textContent = S.catId === ALL && S.enabled.length ? 'All channels' : c ? c.name : S.enabled.length ? 'Choose group' : 'No groups yet';
+}
+/* Reordering: the order of S.enabled is the person's own order for this provider; it is saved with the groups. */
+let reorderOn = false, reorderTimer = null, reorderDirty = false;
+async function saveOrder() {
+  clearTimeout(reorderTimer);
+  if (!reorderDirty) return;
+  reorderDirty = false;
+  try {
+    const r = await send(`/api/p/${S.pid}/groups`, { groups: S.enabled });
+    S.enabled = r.groups; S.sel = new Set(r.groups);
+  } catch (e) { reorderDirty = true; toast('Couldn’t save the order: ' + e.message); }
+}
+function moveGroup(id, to) {
+  const i = S.enabled.indexOf(id);
+  if (i < 0) return;
+  const j = to === 'top' ? 0 : to === 'bottom' ? S.enabled.length - 1 : Math.max(0, Math.min(S.enabled.length - 1, i + to));
+  if (j === i) return;
+  S.enabled.splice(i, 1);
+  S.enabled.splice(j, 0, id);
+  reorderDirty = true;
+  clearTimeout(reorderTimer);
+  reorderTimer = setTimeout(saveOrder, 700);
+  renderGroupOptions();
+  const row = [...$('#groupOptions').children].find((r) => r.dataset.id === id);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+function setReorder(on) {
+  reorderOn = on;
+  $('#groupReorder').setAttribute('aria-pressed', String(on));
+  $('#groupReorder').textContent = on ? 'Done' : 'Reorder';
+  $('#groupFilter').disabled = on;
+  if (on) $('#groupFilter').value = '';
+  else saveOrder();
+  renderGroupOptions();
+}
+function renderGroupOptions() {
+  const q = $('#groupFilter').value.trim().toLowerCase();
+  const box = $('#groupOptions');
+  box.replaceChildren();
+  const frag = document.createDocumentFragment();
+  if (reorderOn) {
+    S.enabled.forEach((id, i) => {
+      const c = S.cats.get(id);
+      if (!c) return;
+      const row = el('div', 'opt moving');
+      row.dataset.id = id;
+      const mv = el('div', 'mv');
+      const mk = (label, aria, to, off) => { const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-label', `${aria} ${c.name}`); b.disabled = off; b.addEventListener('click', () => moveGroup(id, to)); return b; };
+      mv.append(mk('Top', 'Move to top:', 'top', i === 0), mk('▲', 'Move up:', -1, i === 0), mk('▼', 'Move down:', 1, i === S.enabled.length - 1), mk('Bottom', 'Move to bottom:', 'bottom', i === S.enabled.length - 1));
+      row.append(el('span', 'cname', c.name), mv);
+      frag.append(row);
+    });
+    box.append(frag);
+    return;
+  }
+  if (S.enabled.length && (!q || 'all channels'.includes(q))) {
+    const a = el('button', 'opt');
+    a.type = 'button';
+    if (S.catId === ALL) a.setAttribute('aria-current', 'true');
+    a.append(el('span', 'cname', 'All channels'), el('span', 'ccount', S.enabled.reduce((n, id) => n + (S.cats.get(id) ? S.cats.get(id).count : 0), 0).toLocaleString()));
+    a.addEventListener('click', () => { S.catId = ALL; store.set(`dock.cat.${S.pid}`, ALL); $('#search').value = ''; closeDialog($('#groupSheet')); updateGroupBtn(); loadList(); });
+    frag.append(a);
+  }
+  for (const id of S.enabled) {
+    const c = S.cats.get(id);
+    if (!c || (q && !c.name.toLowerCase().includes(q))) continue;
+    const b = el('button', 'opt');
+    b.type = 'button';
+    if (id === S.catId) b.setAttribute('aria-current', 'true');
+    b.append(el('span', 'cname', lockMark(c) + c.name), el('span', 'ccount', c.count.toLocaleString()));
+    b.addEventListener('click', async () => {
+      if (c.lock && !S.adult.open && !(await needPin())) return; // Back on the PIN pad leaves you here, in the list of groups
+      S.catId = id; store.set(`dock.cat.${S.pid}`, id); $('#search').value = ''; closeDialog($('#groupSheet')); updateGroupBtn(); loadList();
+    });
+    frag.append(b);
+  }
+  if (!frag.childNodes.length) box.append(el('div', 'field', S.enabled.length ? 'No group matches that filter.' : 'No groups chosen yet. Use Manage to pick some.'));
+  else box.append(frag);
+}
+$('#groupBtn').addEventListener('click', () => { reorderOn = false; setReorder(false); $('#groupFilter').value = ''; renderGroupOptions(); openDialog($('#groupSheet')); });
+$('#groupReorder').addEventListener('click', () => setReorder(!reorderOn));
+$('#groupSheet').addEventListener('close', () => { if (reorderOn) setReorder(false); else saveOrder(); updateGroupBtn(); });
+$('#groupFilter').addEventListener('input', renderGroupOptions);
+$('#search').addEventListener('input', () => { if (S.edit) { S.edit = false; flushChannelOrder(); } clearTimeout(S.timers.search); S.timers.search = setTimeout(loadList, 250); });
+
+/* ---------------- adult content lock ---------------- */
+/* Groups that look adult are locked behind the profile's PIN. The server hides their channels and titles and refuses to play them;
+ * this is the PIN pad, the lock marks, and keeping the screen in step with what the server says. */
+const lockMark = (c) => (c && c.lock ? (S.adult.open ? '🔓 ' : '🔒 ') : '');
+async function refreshAdult(reload) { // pick up the server's view after the lock state changed
+  if (!S.pid) return;
+  try {
+    const b = await api(`/api/p/${S.pid}/bootstrap`);
+    S.boot = b; S.cats = new Map(b.categories.map((c) => [c.id, c])); S.favs = new Set(b.favorites); S.adult = b.adult || S.adult;
+    buildManage(); updateGroupBtn();
+  } catch { /* the next load shows the problem */ }
+  V.cats.clear();
+  if (reload !== false) { if (S.tab === 'vod') loadVod(); else if (S.tab === 'channels' || S.tab === 'favorites') loadList(); }
+}
+/* opens the PIN pad; true when the person got in, false when they went Back */
+function askPin() {
+  return new Promise((resolve) => {
+    const dlg = $('#pinSheet'), body = $('#pinBody');
+    let pin = '', busy = false, done = false, tick = null, until = 0;
+    const finish = (v) => { if (done) return; done = true; clearInterval(tick); dlg.removeEventListener('cancel', onCancel); dlg.removeEventListener('keydown', onKey); closeDialog(dlg); resolve(v); };
+    const onCancel = (e) => { e.preventDefault(); finish(false); };
+    $('#pinBack').onclick = () => finish(false);
+    dlg.addEventListener('cancel', onCancel);
+    body.replaceChildren();
+    if (!S.adult.hasPin) { // nothing to enter yet: set one (the account password is asked for)
+      $('#pinTitle').textContent = 'Set your PIN';
+      const mk = (label, attrs) => { const f = el('div', 'field'), l = el('label', '', label), i = document.createElement('input'); Object.assign(i, attrs); i.autocomplete = 'off'; l.htmlFor = i.id = 'pf' + Math.random().toString(36).slice(2, 7); f.append(l, i); body.append(f); return i; };
+      const pw = mk('Your password', { type: 'password' }), p1 = mk('New PIN (four digits)', { type: 'password', inputMode: 'numeric', maxLength: 4 }), p2 = mk('Type the PIN again', { type: 'password', inputMode: 'numeric', maxLength: 4 });
+      const msg = el('p', 'msg'); msg.hidden = true; const mf = el('div', 'field'); mf.append(msg); body.append(mf);
+      const go = el('button', 'btn primary', 'Set PIN'); go.type = 'button';
+      go.onclick = async () => {
+        msg.hidden = false; msg.className = 'msg bad';
+        if (!/^\d{4}$/.test(p1.value)) return (msg.textContent = 'The PIN is four digits.');
+        if (p1.value !== p2.value) return (msg.textContent = 'The two PINs don’t match.');
+        go.disabled = true;
+        try { const j = await send('/api/adult/pin', { password: pw.value, pin: p1.value }, 'POST'); S.adult = Object.assign(S.adult, { hasPin: true, open: !!j.open }); finish(true); }
+        catch (e) { msg.textContent = e.message; }
+        go.disabled = false;
+      };
+      const gf = el('div', 'field'); gf.append(go); body.append(gf);
+      openDialog(dlg); pw.focus();
+      return;
+    }
+    $('#pinTitle').textContent = 'Enter your PIN';
+    const dots = el('div'); dots.id = 'pinDots'; for (let i = 0; i < 4; i++) dots.append(document.createElement('i'));
+    const msg = el('p'); msg.id = 'pinMsg'; msg.setAttribute('aria-live', 'polite');
+    const pad = el('div'); pad.id = 'pinPad';
+    const keys = {};
+    const paint = () => { [...dots.children].forEach((d, i) => d.classList.toggle('on', i < pin.length)); };
+    const say = (t, bad) => { msg.textContent = t; msg.className = bad ? 'bad' : ''; };
+    const lockedOut = () => until > Date.now();
+    const setEnabled = () => { for (const b of Object.values(keys)) b.disabled = busy || lockedOut(); };
+    const countdown = () => {
+      clearInterval(tick);
+      const left = () => Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      const show = () => { const n = left(); if (!n) { clearInterval(tick); say(''); setEnabled(); return; } say(`Too many wrong PINs. Try again in ${n >= 90 ? Math.ceil(n / 60) + ' min' : n + ' s'}.`, true); };
+      show(); setEnabled(); tick = setInterval(show, 1000);
+    };
+    const submit = async () => {
+      busy = true; setEnabled(); say('Checking…');
+      try {
+        const j = await send('/api/adult/unlock', { pin }, 'POST');
+        S.adult.open = !!j.open; finish(true);
+      } catch (e) {
+        pin = ''; paint();
+        const w = e.body && e.body.wait;
+        if (w) { until = Date.now() + w * 1000; countdown(); }
+        else say(e.status === 401 ? `That PIN isn’t right.${e.body && e.body.left ? ` ${e.body.left} ${e.body.left === 1 ? 'try' : 'tries'} left.` : ''}` : e.message, true);
+      }
+      busy = false; setEnabled();
+    };
+    const press = (d) => { if (busy || lockedOut() || done) return; if (d === 'del') pin = pin.slice(0, -1); else if (pin.length < 4) pin += d; paint(); if (pin.length === 4) submit(); else if (!lockedOut()) say(''); };
+    for (const k of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del']) {
+      if (k === '') { pad.append(document.createElement('span')); continue; }
+      const b = el('button', null, k === 'del' ? '⌫' : k); b.type = 'button'; if (k === 'del') b.setAttribute('aria-label', 'Delete');
+      b.addEventListener('click', () => press(k)); keys[k] = b; pad.append(b);
+    }
+    const onKey = (e) => { if (/^\d$/.test(e.key)) { press(e.key); e.preventDefault(); } else if (e.key === 'Backspace') { press('del'); e.preventDefault(); } };
+    dlg.addEventListener('keydown', onKey);
+    body.append(dots, msg, pad); paint();
+    openDialog(dlg);
+    api('/api/adult/status').then((j) => { if (j.wait) { until = Date.now() + j.wait * 1000; countdown(); } }).catch(() => {});
+  });
+}
+async function needPin() { // true when blocked content is open to this person (asking for the PIN first if it isn't)
+  if (!S.adult.on || S.adult.open) return true;
+  if (!(await askPin())) return false;
+  await refreshAdult(false);
+  return true;
+}
+/* keep the screen honest: the server locks after idle time, so ask now and then, and tell it when the person is active */
+let lastPing = 0;
+function adultActivity() {
+  if (!S.adult.on || !S.adult.open || Date.now() - lastPing < 60000) return;
+  lastPing = Date.now(); send('/api/adult/ping', {}, 'POST').catch(() => {});
+}
+for (const ev of ['keydown', 'pointerdown']) document.addEventListener(ev, adultActivity, { passive: true });
+setInterval(async () => {
+  if (!S.adult.on || !S.adult.open || document.hidden) return;
+  try { const j = await api('/api/adult/status'); if (!j.open) { S.adult.open = false; toast('Blocked channels locked'); refreshAdult(true); } } catch { /* try again later */ }
+}, 60000);
+$('#btnAdult').addEventListener('click', async () => {
+  closeDialog($('#settingsSheet'));
+  if (S.adult.open) { try { await send('/api/adult/lock', {}, 'POST'); S.adult.open = false; toast('Blocked channels locked'); await refreshAdult(true); } catch (e) { toast(e.message); } }
+  else if (await needPin()) { toast('Blocked channels unlocked'); await refreshAdult(true); }
+});
+$('#btnPin').addEventListener('click', async () => {
+  closeDialog($('#settingsSheet'));
+  const had = S.adult.hasPin; S.adult.hasPin = false; // the same screen sets a new one
+  const ok = await askPin();
+  if (!ok) S.adult.hasPin = had; else { toast('PIN set'); await refreshAdult(true); }
+});
+
+/* ---------------- manage ---------------- */
+const sameSet = (a, b) => a.size === b.length && b.every((x) => a.has(x));
+function buildManage() {
+  const box = $('#cats');
+  box.replaceChildren();
+  const frag = document.createDocumentFragment();
+  for (const c of S.boot.categories) {
+    const lab = el('label', 'cat');
+    lab.dataset.name = c.name.toLowerCase();
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = c.id; cb.checked = S.sel.has(c.id);
+    lab.append(cb, el('span', 'cname', lockMark(c) + (c.name || '(unnamed group)')), el('span', 'ccount', c.count.toLocaleString()));
+    frag.append(lab);
+  }
+  box.append(frag);
+  $('#catFilter').value = '';
+  $('#onlySelBox').checked = false;
+  updateManage();
+  const age = Math.round((Date.now() - S.boot.fetchedAt) / 60000);
+  $('#catalogAge').textContent = `${S.boot.total.toLocaleString()} channels, updated ${age < 2 ? 'just now' : age < 120 ? age + ' minutes ago' : Math.round(age / 60) + ' hours ago'}`;
+}
+function updateManage() {
+  let ch = 0;
+  S.sel.forEach((id) => { const c = S.cats.get(id); if (c) ch += c.count; });
+  $('#manageSummary').textContent = `${S.sel.size.toLocaleString()} group${S.sel.size === 1 ? '' : 's'}, ${ch.toLocaleString()} channels`;
+  $('#saveGroups').disabled = sameSet(S.sel, S.enabled);
+}
+function applyCatFilter() {
+  const q = $('#catFilter').value.trim().toLowerCase();
+  const only = $('#onlySelBox').checked;
+  for (const lab of $('#cats').children) lab.hidden = !((!q || lab.dataset.name.includes(q)) && (!only || lab.firstChild.checked));
+}
+$('#manageBack').addEventListener('click', () => { // leave without saving: put the ticks back as they were
+  S.sel = new Set(S.enabled);
+  for (const lab of $('#cats').children) lab.firstChild.checked = S.sel.has(lab.firstChild.value);
+  updateManage();
+  setTab('channels');
+});
+$('#cats').addEventListener('change', (e) => { const cb = e.target; cb.checked ? S.sel.add(cb.value) : S.sel.delete(cb.value); updateManage(); });
+$('#catFilter').addEventListener('input', () => { clearTimeout(applyCatFilter.t); applyCatFilter.t = setTimeout(applyCatFilter, 150); });
+$('#onlySelBox').addEventListener('change', applyCatFilter);
+function setShown(on) {
+  for (const lab of $('#cats').children) { if (lab.hidden) continue; const cb = lab.firstChild; cb.checked = on; on ? S.sel.add(cb.value) : S.sel.delete(cb.value); }
+  updateManage();
+}
+$('#selShown').addEventListener('click', () => setShown(true));
+$('#clrShown').addEventListener('click', () => setShown(false));
+$('#saveGroups').addEventListener('click', async () => {
+  const btn = $('#saveGroups');
+  btn.disabled = true; btn.textContent = 'Saving';
+  try {
+    // keep the person's own order for groups already in the lineup; newly ticked groups go at the end, in the provider's order
+    const kept = S.enabled.filter((id) => S.sel.has(id));
+    const order = kept.concat(S.boot.categories.map((c) => c.id).filter((id) => S.sel.has(id) && !kept.includes(id)));
+    const r = await send(`/api/p/${S.pid}/groups`, { groups: order });
+    S.enabled = r.groups; S.sel = new Set(r.groups);
+    if (!S.enabled.length) S.catId = null; else if (S.catId !== ALL && !S.enabled.includes(S.catId)) S.catId = ALL;
+    updateGroupBtn(); updateManage();
+    toast(`Saved. ${r.channels.toLocaleString()} channels in your lineup.`);
+    setTab('channels');
+  } catch (e) { toast('Couldn’t save: ' + e.message); updateManage(); }
+  btn.textContent = 'Save groups';
+});
+$('#refreshCatalog').addEventListener('click', async () => {
+  const btn = $('#refreshCatalog');
+  btn.disabled = true; btn.textContent = 'Refreshing';
+  try { await send(`/api/p/${S.pid}/refresh`, {}, 'POST'); await loadProviderData(S.pid, 'manage'); toast('Channel list updated'); } catch (e) { toast('Couldn’t refresh: ' + e.message); }
+  btn.disabled = false; btn.textContent = 'Refresh channel list';
+});
+
+/* ---------------- settings ---------------- */
+$('#btnSettings').addEventListener('click', () => {
+  $('#setPause').value = String(settings.pauseStop); $('#setHidden').value = String(settings.hiddenStop);
+  $('#acctRewind').hidden = true;
+  api('/api/rewind').then((j) => { // this profile's choice, within what the server allows
+    if (!j.choices || !j.choices.length) return;
+    const sel = $('#setRewind'); sel.replaceChildren(...j.choices.map((m) => { const o = document.createElement('option'); o.value = String(m); o.textContent = m === 60 ? '1 hour' : m + ' minutes'; return o; }));
+    sel.value = String(j.minutes); $('#acctRewind').hidden = false;
+  }).catch(() => {});
+  const p = S.pid && prov();
+  $('#acctGroups').hidden = !p;
+  $('#acctAdult').hidden = !S.adult.on;
+  if (S.adult.on) { $('#btnAdult').textContent = S.adult.open ? 'Lock blocked channels' : 'Unlock blocked channels'; $('#adultNote').textContent = S.adult.open ? 'Blocked groups are open on this screen. They lock again after a while with no activity, or when you sign out or switch profile.' : 'Blocked groups stay locked, and their channels and titles hidden, until you enter your PIN.'; }
+  if (p) $('#groupsNote').textContent = `Choose which groups from ${p.name} show up in Channels.`;
+  openDialog($('#settingsSheet'));
+});
+$('#btnGroups').addEventListener('click', () => { closeDialog($('#settingsSheet')); setTab('manage'); });
+$('#setRewind').addEventListener('change', async (e) => { try { const j = await send('/api/rewind', { minutes: +e.target.value }, 'PUT'); S.me.rewind = j.minutes; toast('Rewind set. It applies from the next channel you play.'); } catch (x) { toast(x.message || 'That didn’t work'); } });
+for (const [id, key] of [['#setPause', 'pauseStop'], ['#setHidden', 'hiddenStop']]) {
+  $(id).addEventListener('change', (e) => { settings[key] = +e.target.value; store.set('dock.settings', JSON.stringify(settings)); });
+}
+$('#signOut').addEventListener('click', async () => {
+  stopPlayback('Signed out', '');
+  try { await send('/api/logout', {}, 'POST'); } catch { /* signing out anyway */ }
+  location.replace('/login.html');
+});
+$('#signOutAll').addEventListener('click', async () => {
+  try { await send('/api/signout-everywhere', {}, 'POST'); toast('Signed out on every other device'); } catch (e) { toast(e.message || 'That didn’t work'); }
+});
+$('#stopAll').addEventListener('click', async () => {
+  stopPlayback('Stopped', 'Everything the server was pulling has ended.');
+  try { const r = await send('/api/stop', { all: true }, 'POST'); toast(r.stopped ? 'All streams stopped' : 'Nothing was streaming'); } catch { toast('Couldn’t reach the server'); }
+  closeDialog($('#settingsSheet'));
+});
+document.querySelectorAll('dialog').forEach((d) => {
+  d.addEventListener('click', (e) => { if (e.target === d || e.target.hasAttribute('data-close')) closeDialog(d); });
+});
+
+/* ---------------- provider loading ---------------- */
+async function loadProviderData(pid, tab) {
+  const b = await api(`/api/p/${pid}/bootstrap`);
+  if (S.pid !== pid) return;
+  S.boot = b;
+  S.adult = b.adult || { on: false, open: true, hasPin: false };
+  S.cats = new Map(b.categories.map((c) => [c.id, c]));
+  S.enabled = b.groups.slice();
+  S.favs = new Set(b.favorites);
+  S.sel = new Set(S.enabled);
+  const saved = store.get(`dock.cat.${pid}`);
+  S.catId = !S.enabled.length ? null : saved === ALL || S.enabled.includes(saved) ? saved : ALL; // nothing chosen yet shows everything
+  buildManage();
+  updateGroupBtn();
+  setTab(tab || (S.enabled.length ? 'channels' : 'manage'));
+}
+async function switchProvider(pid) {
+  if (S.vod) { vodSave(); S.vod = null; stopPlayback('Stopped', 'Pick a channel.'); }
+  if (S.current || S.starting || S.playing) {
+    const name = S.providers.find((p) => p.id === pid).name;
+    stopPlayback('Stopped', `Switched to ${name}. Pick a channel.`);
+  }
+  S.current = null; S.epg = [];
+  renderNow();
+  await startProvider(pid);
+}
+async function startProvider(pid) {
+  S.pid = pid;
+  renderProviders();
+  $('#search').value = '';
+  S.items = []; list.replaceChildren(); $('#count').textContent = '';
+  $('#paneManage').hidden = true; $('#paneList').style.display = 'flex'; $('#toolbar').hidden = false;
+  $('#groupBtn span').textContent = 'Loading';
+  showMsg(`Loading ${prov().name}`, 'The first load can take a minute for large lineups.');
+  const wasVod = S.tab === 'vod';
+  try { await loadProviderData(pid); } catch (e) { if (S.pid === pid) showMsg('Couldn’t load this provider', e.message, 'Try again', () => startProvider(pid)); }
+  if (S.pid === pid) { updateVodTab(); if (wasVod && vodProv()) setTab('vod'); }
+}
+
+function showNoProviders() {
+  renderProviders();
+  $('#paneManage').hidden = true; $('#paneList').style.display = 'flex'; $('#toolbar').hidden = false;
+  $('#groupBtn span').textContent = 'No provider';
+  if (S.me.role === 'admin') showMsg('Add your first provider', 'Open Admin settings and add an IPTV provider: an Xtream login or an M3U playlist.', 'Open admin settings', () => window.Dock.openAdmin('providers'));
+  else showMsg('No providers yet', 'Ask an admin to add one.');
+}
+/* Switches the header to match the provider list after an admin changed it. */
+async function refreshProviders() {
+  const info = await api('/api/providers');
+  S.providers = info.providers; updateVodTab();
+  if (S.current && !S.providers.some((p) => p.id === S.current.p)) { stopPlayback('Stopped', 'That provider was removed.'); S.current = null; S.epg = []; renderNow(); }
+  if (!S.providers.length) { S.pid = null; return showNoProviders(); }
+  if (!S.providers.some((p) => p.id === S.pid)) return startProvider(S.providers[0].id);
+  renderProviders();
+}
+/* A default or temporary password has to be replaced before anything else works. */
+function askPassword(forced) {
+  const dlg = $('#pwSheet'), f = $('#pwForm');
+  f.reset(); $('#pwErrBox').hidden = true;
+  $('#pwWhy').hidden = !forced;
+  $('#pwWhyText').textContent = 'Before you start, choose a password of your own. The one you just used was a default or temporary one.';
+  $('#pwCancel').hidden = forced;
+  $('#pwTitle').textContent = forced ? 'Choose a new password' : 'Change password';
+  return new Promise((resolve) => {
+    const onCancel = (e) => { if (forced) e.preventDefault(); };
+    dlg.addEventListener('cancel', onCancel);
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const showErr = (m) => { $('#pwErr').textContent = m; $('#pwErrBox').hidden = false; };
+      $('#pwErrBox').hidden = true;
+      if ($('#pwNew').value !== $('#pwNew2').value) return showErr('The two new passwords don’t match.');
+      const go = $('#pwGo'); go.disabled = true;
+      try {
+        await send('/api/password', { current: $('#pwCur').value, next: $('#pwNew').value }, 'POST');
+        dlg.removeEventListener('cancel', onCancel);
+        closeDialog(dlg); toast('Password changed'); resolve(true);
+      } catch (err) { showErr(err.message); }
+      go.disabled = false;
+    };
+    openDialog(dlg);
+    setTimeout(() => $('#pwCur').focus(), 50);
+  });
+}
+async function init() {
+  try {
+    const me = await api('/api/me');
+    S.me = me || {};
+    if (me && me.version) $('#verNote').textContent = `Zibbit ${me.version}`;
+    $('#savedBtn').hidden = !(me && me.rec);
+    if (me && me.mode === 'users' && me.name) {
+      $('#acct').hidden = false; $('#acctName').textContent = `Signed in as ${me.name}${me.role === 'admin' ? ', an admin' : ''}`;
+      $('#acctPw').hidden = false; $('#acctAdmin').hidden = me.role !== 'admin';
+    }
+    if (me && me.mustChange) await askPassword(true);
+  } catch (e) { if (e.message === 'Signed out' || e.message === 'Password change required') return; /* otherwise carry on; providers will report the problem */ }
+  let info;
+  try { info = await api('/api/providers'); } catch (e) { return showMsg('Can’t reach the server', e.message, 'Try again', init); }
+  S.providers = info.providers; updateVodTab();
+  if (!S.providers.length) { pollStatus(); return showNoProviders(); }
+  const first = S.providers.find((p) => p.id === info.lastProvider) || S.providers[0];
+  pollStatus();
+  await startProvider(first.id);
+  // offer to resume the last channel, without streaming anything yet
+  if (info.last && info.last.p === first.id && S.pid === first.id) {
+    try {
+      const ch = await api(`/api/p/${first.id}/channel?s=${info.last.s}`);
+      if (S.pid === first.id && !S.current) { S.current = { s: ch.s, n: ch.n, i: ch.i, p: first.id }; renderNow(); showOverlay('Last watched', ch.n); loadCurrentEpg(); }
+    } catch { /* channel may be gone */ }
+  }
+}
+$('#btnPw').addEventListener('click', () => { closeDialog($('#settingsSheet')); askPassword(false); });
+if (/ZibbitApp\//.test(navigator.userAgent)) $('#appServer').hidden = false; // only inside the Android app
+$('#btnServers').addEventListener('click', () => { closeDialog($('#settingsSheet')); location.href = 'zibbit://servers'; });
+$('#btnAppUpdate').addEventListener('click', () => { closeDialog($('#settingsSheet')); location.href = 'zibbit://update'; });
+$('#btnAdmin').addEventListener('click', () => { closeDialog($('#settingsSheet')); window.Dock.openAdmin(); });
+window.Dock = { $, el, api, send, toast, openDialog, closeDialog, refreshProviders, me: () => S.me };
+renderNow();
+init();
+})();
+</script>
+<script src="admin.js"></script>
+</body>
+</html>

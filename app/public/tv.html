@@ -1,0 +1,2784 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0c1118">
+<link rel="icon" type="image/png" href="/icons/favicon-64.png">
+<title>Zibbit TV</title>
+<style>
+:root{
+  --ink:#0c1118; --panel:#131a24; --raised:#1b2432; --line:#28334a;
+  --text:#e8ecf3; --mute:#8996ad; --tally:#ff4a3d; --warn:#ffb454; --focus:#9ec5ff; --accent:#4d33e0;
+  --cond:"Roboto Condensed","Arial Narrow","Helvetica Neue Condensed","sans-serif-condensed",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --rh:2.9rem; --chan:11.5rem; --topH:34vh;
+}
+*{box-sizing:border-box}
+/* everything is sized in rem, and rem follows the screen width, so one layout fits 720p, 1080p and 4K */
+html,body{height:100%;margin:0;background:var(--ink);color:var(--text);font:1rem/1.3 var(--body);overflow:hidden;cursor:none}
+/* the size comes after the shorthand above, which would otherwise reset it. At a 960-wide screen: Large 16px (how the page looked before this option existed), Medium 14px, Small 12.6px */
+html{font-size:calc(100vw / 68)}
+html.sz0{font-size:calc(100vw / 76)}
+html.sz2{font-size:calc(100vw / 60)}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.foc{outline:.2rem solid var(--focus);outline-offset:-.2rem;background:#26344d!important}
+
+/* ---------- main layout ---------- */
+#main{height:100vh;display:grid;grid-template-columns:12rem minmax(0,1fr)}
+#main.nos{grid-template-columns:0 minmax(0,1fr)}
+#main.nos #side{visibility:hidden;overflow:hidden;border-right:0}
+#side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#brand{flex:none;padding:.7rem .9rem .4rem;font:700 1.25rem var(--cond);letter-spacing:.02em}
+#brand i{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:#ffd23f;margin-left:.15rem}
+#tree{flex:1;min-height:0;overflow:hidden;position:relative}
+.tn{display:flex;align-items:center;gap:.5rem;height:1.95rem;padding:0 .7rem;font:600 .95rem var(--cond);white-space:nowrap;overflow:hidden;color:var(--mute);border-left:.3rem solid transparent}
+.tn .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.tn .ct{font:500 .8rem var(--body);color:var(--mute)}
+.tn.prov{color:var(--text);font-size:1.2rem;margin-top:.1rem}
+.tn.child{padding-left:1.6rem}
+.tn.sel{color:var(--text);border-left-color:var(--accent);background:rgba(77,51,224,.18)}
+.tn.dim{font-weight:500;font-style:italic}
+#setBtn{flex:none;border-top:1px solid var(--line)}
+#setBtn .tn{height:2.2rem;color:var(--text)}
+
+#content{display:grid;grid-template-rows:var(--topH) 2rem minmax(0,1fr);min-width:0;min-height:0}
+#top{display:grid;grid-template-rows:minmax(0,1fr);grid-template-columns:calc((var(--topH) - 1.4rem) * 16 / 9) minmax(0,1fr);gap:1.2rem;padding:.8rem 1.2rem 0;min-height:0;overflow:hidden}
+#stage{position:relative;height:100%;width:100%;min-width:0;background:#000;border-radius:.5rem;overflow:hidden;border:.18rem solid transparent}
+#stage.foc{outline:none;border-color:var(--focus);background:#000!important}
+#video{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;background:#000}
+#ov{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:.4rem;padding:1rem;text-align:center;background:rgba(6,9,13,.78)}
+#ov strong{font:600 1.3rem var(--cond)}
+#ov span{color:var(--mute);max-width:30ch;font-size:.95rem}
+.spin{position:relative;width:5.2rem;height:5.2rem;margin-bottom:.5rem;display:grid;place-items:center}
+.spin::before{content:'';position:absolute;inset:0;border-radius:50%;border:.22rem solid rgba(255,255,255,.1);border-top-color:var(--focus);border-right-color:var(--focus);animation:spin 1.1s cubic-bezier(.5,.15,.5,.85) infinite}
+.spin img{width:3.2rem;height:3.2rem;border-radius:.7rem;animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.6;transform:scale(.94)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+#cc{position:absolute;left:5%;right:5%;bottom:6%;text-align:center;pointer-events:none;white-space:pre-line}
+#cc span{display:inline;background:rgba(0,0,0,.78);color:#fff;padding:.1em .35em;line-height:1.5;font-family:var(--body);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+#fsinfo{position:absolute;left:0;right:0;bottom:0;padding:2rem 2.4rem 1.6rem;background:linear-gradient(transparent,rgba(0,0,0,.85));display:none}
+#stage.full #fsinfo.show{display:block}
+#recbadge{position:absolute;top:1.4rem;right:2rem;padding:.3rem .8rem;border-radius:.4rem;background:rgba(0,0,0,.6);color:#ff5a5a;font:700 1.2rem var(--cond);letter-spacing:.04em;display:none}
+#stage.full #recbadge:not([hidden]){display:block}
+#stage.vodp #recbadge{display:none!important}
+#fsinfo b{display:block;font:700 1.8rem var(--cond)}
+#fsinfo span{color:#cfd7e6;font-size:1.1rem}
+#fsinfo em{display:block;font-style:normal;color:#9fb0c8;font-size:1rem;margin-top:.25rem}
+#stage.full{position:fixed;inset:0;z-index:50;border:0;border-radius:0;width:auto;height:auto}
+
+#details{position:relative;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:.5rem;padding-top:.2rem}
+#chSearch{position:absolute;top:.3rem;right:0}
+#nowTop{padding-right:7rem;display:flex;align-items:center;gap:1rem;min-width:0}
+#nowLogo{flex:none;width:3.2rem;height:3.2rem;border-radius:.6rem;background:var(--raised);display:grid;place-items:center;overflow:hidden;font:600 1.4rem var(--cond);color:var(--mute)}
+#nowLogo img{width:100%;height:100%;object-fit:contain}
+#nowName{font:700 1.7rem/1.1 var(--cond);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nowStat{display:flex;align-items:center;gap:.5rem;color:var(--mute);font-size:.9rem}
+.lamp{width:.8rem;height:.8rem;border-radius:50%;background:#38435a}
+.lamp.on{background:var(--tally);box-shadow:0 0 .8rem .1rem rgba(255,74,61,.65)}
+#nowProg{font:600 1.25rem var(--cond)}
+#nowTime{color:var(--mute);font-size:.95rem}
+#bar{height:.3rem;border-radius:.2rem;background:var(--line);overflow:hidden;max-width:34rem}
+#bar i{display:block;height:100%;width:0;background:var(--text)}
+#nowDesc{color:#b4bfd2;font-size:.95rem;line-height:1.35;max-width:46rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+
+/* ---------- toolbar ---------- */
+#tool{display:flex;align-items:center;gap:.6rem;padding:0 1.2rem;border-bottom:1px solid var(--line);min-width:0}
+.chip{height:1.9rem;padding:0 .9rem;border-radius:999px;background:var(--raised);border:1px solid var(--line);font:600 .95rem var(--cond);display:flex;align-items:center;white-space:nowrap}
+#hl{flex:1;min-width:0;text-align:right;color:var(--mute);font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hl b{color:var(--text);font-weight:600}
+
+/* ---------- movies and shows ---------- */
+.tn.c2{padding-left:2.5rem}
+.tn.on{color:var(--text);border-left-color:var(--accent);background:rgba(77,51,224,.18)}
+#main.vod #chSearch,#main.vod #nowStat{display:none}
+#main:not(.vod) #vSort{display:none}
+#chSearch{display:none!important}
+#vSort{height:auto;padding:0;border:0;background:none;border-radius:0;font:500 .8rem var(--body);color:var(--mute)}
+#guide.ls #times,#guide.ls #rows{display:none}
+#wall .lsh{grid-column:1/-1;font:700 1rem var(--cond);color:var(--text)}
+#wall .lsn{grid-column:1/-1;color:var(--mute);font-size:.8rem}
+.lt{position:relative;height:6.2rem;box-sizing:border-box;min-width:0;border-radius:.6rem;background:var(--raised);border:.15rem solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;padding:.4rem;text-align:center}
+.lt.foc{outline:none;border-color:var(--focus);background:#26344d}
+.lt .lgs{width:2.8rem;height:2.8rem;border-radius:.5rem;background:var(--ink);display:grid;place-items:center;overflow:hidden;font:700 1.1rem var(--cond)}
+.lt .lgs img{max-width:100%;max-height:100%}
+.lt .ln{font:600 .72rem/1.15 var(--cond);max-height:1.7rem;overflow:hidden;color:#cfd7e6}
+.lt .lb{position:absolute;top:.2rem;right:.35rem;font-size:.85rem;color:#ffd23f}
+.lt .lnp{position:absolute;top:.2rem;left:.35rem;font-size:.75rem;color:var(--tally)}
+#guide.vod #times,#guide.vod #rows{display:none}
+#wall{flex:1;min-height:0;display:grid;align-content:start;gap:.5rem .4rem;padding:.5rem 1rem 0;overflow:hidden}
+#wall .wmsg{grid-column:1/-1;display:grid;place-content:center;justify-items:center;gap:.4rem;text-align:center;min-height:8rem;color:var(--mute)}
+#wall .wmsg strong{font:600 1.3rem var(--cond);color:var(--text)}
+.vc{min-width:0;padding:.25rem;border-radius:.45rem;border:.15rem solid transparent}
+.vc.foc{outline:none;border-color:var(--focus)}
+.vp{position:relative;height:0;padding-top:150%;border-radius:.3rem;overflow:hidden;background:var(--raised)}
+.vp img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.vp .vi{position:absolute;inset:0;display:grid;place-items:center;font:700 1.5rem var(--cond);color:var(--mute)}
+.vp .vx{font-size:2rem}
+.vp .vm{position:absolute;left:0;right:0;bottom:0;height:.3rem;background:rgba(0,0,0,.65)}
+.vp .vm i{display:block;height:100%;background:var(--tally)}
+.vt{font:600 .72rem/1.15 var(--cond);margin-top:.3rem;height:1.7rem;overflow:hidden;color:#cfd7e6}
+#ov .vbk{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5}
+#ov .vbk.pst{object-fit:contain;opacity:1}
+#stage.poster{background:transparent}
+#stage.poster #video{visibility:hidden}
+#stage.poster #ov{background:transparent;padding:0}
+#ov .vbk.pst{border-radius:.5rem}
+#stage.poster .vcta{left:50%;right:auto;width:max-content;max-width:94%;transform:translateX(-50%);bottom:.5rem;padding:.25rem .8rem;border-radius:.4rem;background:rgba(0,0,0,.72)}
+#ov:has(.vcta){background:#000;padding:0}
+#ov .vcta{position:absolute;left:0;right:0;bottom:0;padding:.35rem .6rem;text-align:center;background:linear-gradient(transparent,rgba(0,0,0,.85))}
+#ov .vcta span{color:var(--text);font-size:.95rem;max-width:none}
+.shead{font:700 1rem var(--cond);color:var(--text);margin-top:.5rem}
+#main.vod #nowDesc{order:1}
+#main.vod #nowProg{order:2;font-size:.95rem}
+#main.vod #nowTime{order:3;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#main.vod #details{gap:.25rem}
+#main.vod #nowLogo{display:none}
+#main.vod #nowTop{padding-right:0}
+#main.vod #nowDesc{display:block;-webkit-line-clamp:unset;overflow:hidden;flex:1;min-height:0;max-height:none;scroll-behavior:auto}
+#details.vmore::after{content:'▼ more';position:absolute;right:.4rem;bottom:0;color:var(--focus);font:600 .8rem var(--cond);background:var(--ink);padding:0 .3rem}
+#details.vup::before{content:'▲';position:absolute;right:.4rem;top:5.6rem;color:var(--focus);font-size:.8rem}
+#vbar{position:absolute;left:0;right:0;bottom:0;padding:2rem 2.4rem 1.6rem;background:linear-gradient(transparent,rgba(0,0,0,.9));display:none}
+#stage.full #vbar.show{display:block}
+#stage.vodp #fsinfo{display:none!important}
+#vbar b{display:block;font:700 1.6rem var(--cond)}
+#vbar .trk{position:relative;height:.45rem;border-radius:.3rem;background:rgba(255,255,255,.28);margin:.8rem 0 .5rem}
+#vbar .trk i{position:absolute;left:0;top:0;bottom:0;width:0;background:#fff;border-radius:.3rem}
+#vbar .trk u{position:absolute;top:-.35rem;width:.3rem;height:1.15rem;margin-left:-.15rem;background:var(--focus);border-radius:.15rem}
+#vbar span{color:#cfd7e6;font-size:1.15rem}
+
+/* ---------- guide ---------- */
+#guide{position:relative;min-height:0;display:flex;flex-direction:column;padding:0 0 0 0}
+#times{flex:none;position:relative;height:1.7rem;margin-left:var(--chan);overflow:hidden;border-bottom:1px solid var(--line)}
+#timesTrack{position:absolute;top:0;bottom:0;left:0;will-change:transform}
+.tk{position:absolute;top:0;bottom:0;padding:.4rem 0 0 .5rem;border-left:1px solid var(--line);color:var(--mute);font:600 .8rem var(--cond)}
+#rows{flex:1;min-height:0;position:relative;overflow:hidden}
+.grow{position:absolute;left:0;right:0;height:var(--rh);border-bottom:1px solid #1d2635}
+.gch{position:absolute;left:0;top:0;bottom:0;width:var(--chan);display:flex;align-items:center;gap:.5rem;padding:0 .5rem 0 .7rem;background:var(--panel);z-index:3;border-right:1px solid var(--line)}
+.gch .lg{flex:none;width:2.1rem;height:2.1rem;border-radius:.3rem;background:var(--raised);display:grid;place-items:center;overflow:hidden;font:600 .8rem var(--cond);color:var(--mute)}
+.gch .lg img{width:100%;height:100%;object-fit:contain}
+.gch .nm{flex:1;min-width:0;font:600 .95rem var(--cond);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gch .pl{flex:none;color:var(--tally);font-size:.8rem}
+.gch .fv{flex:none;color:#ffd23f;font-size:.8rem}
+.grow.live .gch{box-shadow:inset .3rem 0 0 var(--tally)}
+.slots{position:absolute;left:var(--chan);right:0;top:0;bottom:0;overflow:hidden}
+.track{position:absolute;top:0;bottom:0;left:0;will-change:transform}
+.pg{position:absolute;top:.15rem;bottom:.15rem;padding:.25rem .5rem;border-radius:.3rem;background:var(--raised);overflow:hidden;white-space:nowrap}
+.pg b{display:block;font:600 .92rem var(--cond);overflow:hidden;text-overflow:ellipsis}
+.pg i{display:block;font:normal .72rem var(--body);color:var(--mute);overflow:hidden;text-overflow:ellipsis}
+.pg.cur{background:#223049}
+.pg.foc{z-index:1;min-width:4.5rem}
+.pg.none{background:transparent;color:var(--mute)}
+.nowline{position:absolute;top:0;bottom:0;width:.15rem;background:var(--tally);opacity:.8;z-index:2}
+#gmsg{position:absolute;inset:1.7rem 0 0 0;display:grid;place-content:center;text-align:center;gap:.5rem;color:var(--mute)}
+#gmsg strong{font:600 1.4rem var(--cond);color:var(--text)}
+#gmsg span{font-size:1rem;max-width:36ch}
+
+/* ---------- modals ---------- */
+.modal.fsroot{background:linear-gradient(transparent 50%,rgba(0,0,0,.78));place-items:end center;padding-bottom:3.2rem}
+.fsmeta{position:absolute;left:0;right:0;bottom:1.1rem;text-align:center;font:600 .8rem var(--cond);color:#9fb0c8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2rem}
+.mbox.fsb{flex-direction:row;background:none;border:0;padding:0;gap:1.2rem;max-width:96vw}
+.mbox.fsb.flat{gap:.6rem}
+.mbox.fsb.flat .mb.sq{width:6.8rem;height:6.8rem;padding:.4rem;gap:.3rem;font-size:.8rem}
+.mbox.fsb.flat .mb.sq .lgs{width:2.7rem;height:2.7rem;font-size:1rem}
+.mbox.fsb.flat .mb.sq .ic{font-size:1.85rem}
+.mbox.fsb.flat .mb.sq small{font-size:.65rem}
+.mb.sq{flex-direction:column;width:8.5rem;height:8.5rem;min-height:0;gap:.35rem;padding:.5rem;white-space:normal;text-align:center;line-height:1.15;font-size:.95rem;border-radius:.8rem}
+.mb.sq .ic{font-size:2.3rem;line-height:1}
+.mb.sq .lgs{width:3.4rem;height:3.4rem;border-radius:.6rem;background:var(--ink);display:grid;place-items:center;overflow:hidden;font:700 1.2rem var(--cond)}
+.mb.sq .lgs img{max-width:100%;max-height:100%}
+.mb.sq small{color:var(--mute);font:500 .75rem var(--body)}
+.mbox.who{align-items:center;padding:2.4rem 3.2rem;gap:1.8rem}
+.whorow{display:flex;gap:1.4rem;flex-wrap:wrap;justify-content:center;max-width:70rem}
+.mb.tile{flex-direction:column;min-height:0;width:9.5rem;padding:1.1rem .6rem;gap:.7rem;background:transparent;border:2px solid transparent;border-radius:.8rem}
+.tile .av{display:grid;place-items:center;width:5.6rem;height:5.6rem;border-radius:50%;background:var(--raised);font:700 2rem var(--cond)}
+.tile.add .av{background:none;border:2px dashed var(--line);color:var(--mute)}
+.tile .nm{font:600 1.1rem var(--cond);max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.mb.tile.foc{background:var(--raised);border-color:var(--focus)}
+.pindots{display:flex;justify-content:center;gap:1.1rem;margin:.2rem 0}
+.pindots i{width:1.1rem;height:1.1rem;border-radius:50%;border:.15rem solid var(--mute)}
+.pindots i.on{background:var(--text);border-color:var(--text)}
+.pinmsg{min-height:2.6rem;text-align:center;font-size:1rem}
+.pinmsg.bad{color:var(--warn)}
+.pinpad{display:grid;grid-template-columns:repeat(3,5.6rem);gap:.6rem;justify-content:center}
+.pinpad .mb{height:3.6rem;min-width:0;padding:0;font-size:1.5rem}
+.modal{position:fixed;inset:0;z-index:100;background:rgba(5,8,12,.82);display:grid;place-items:center}
+.mbox{background:var(--panel);border:1px solid var(--line);border-radius:.7rem;padding:1.2rem 1.4rem;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;gap:1rem}
+.mbox h2{margin:0;font:700 1.45rem var(--cond)}
+.mbox p{margin:0;color:var(--mute);font-size:1rem;max-width:44rem;line-height:1.4}
+.mb{display:flex;align-items:center;justify-content:center;gap:.5rem;min-height:2.3rem;padding:0 1rem;border-radius:.4rem;background:var(--raised);border:1px solid var(--line);font:600 1.05rem var(--cond);white-space:nowrap}
+.mb.primary{background:var(--text);color:var(--ink)}
+.mrow{display:flex;gap:1rem;flex-wrap:wrap}
+.srow{justify-content:space-between;min-width:30rem;text-align:left}
+.srow .v{color:var(--focus);font-weight:700}
+.srow.dis{opacity:.5}
+#setBox{width:36rem}
+#setList{display:flex;flex-direction:column;gap:.5rem;overflow:hidden}
+.note{color:var(--mute);font-size:.95rem}
+/* keyboard */
+#oskIn{min-width:26rem;min-height:2.6rem;padding:.3rem .8rem;border-radius:.4rem;background:#0a0f16;border:1px solid var(--line);font:600 1.3rem var(--body);display:flex;align-items:center;overflow:hidden;white-space:pre}
+#oskIn u{display:inline-block;width:.12rem;height:1.3rem;background:var(--focus);margin-left:.1rem;text-decoration:none;animation:blink 1s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+.krow{display:flex;gap:.45rem;justify-content:center}
+.k{flex:1 1 0;min-width:2.8rem;padding:0 .3rem}
+.k.w2{flex:2 1 0}.k.w3{flex:3 1 0}.k.w5{flex:5 1 0}
+#oskKeys{display:flex;flex-direction:column;gap:.35rem;width:38rem}
+/* manage groups */
+#catList{overflow:hidden;display:flex;flex-direction:column;gap:.2rem;height:52vh;width:34rem;position:relative}
+.crow{display:flex;align-items:center;gap:.7rem;min-height:2.2rem;padding:0 .8rem;border-radius:.35rem;background:var(--raised);font:600 1rem var(--cond);flex:none}
+.crow .bx{flex:none;width:1.3rem;height:1.3rem;border:.15rem solid var(--mute);border-radius:.25rem;display:grid;place-items:center;font-size:1rem;line-height:1}
+.crow.on .bx{background:var(--text);border-color:var(--text);color:var(--ink)}
+.crow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .ct{color:var(--mute);font-weight:500}
+/* letters */
+#letters{display:grid;grid-template-columns:repeat(9,3.4rem);gap:.4rem}
+#letters .mb{padding:0}
+
+#toast{position:fixed;left:50%;bottom:2rem;transform:translateX(-50%);z-index:200;background:#e8ecf3;color:#0c1118;font:600 1rem var(--cond);padding:.5rem 1.1rem;border-radius:.6rem;max-width:70vw}
+
+/* ---------- pairing + messages ---------- */
+#gate{position:fixed;inset:0;z-index:90;background:radial-gradient(120% 90% at 50% 0%,#16202f 0%,var(--ink) 62%);display:grid;place-items:center}
+#gateBox{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2.6rem;align-items:center;width:46rem;max-width:92vw;padding:2.4rem 2.6rem;background:var(--panel);border:1px solid var(--line);border-radius:1.1rem;box-shadow:0 1.2rem 3rem rgba(0,0,0,.45)}
+#gateBrand{display:flex;align-items:center;gap:.5rem;font:700 1.1rem var(--cond);letter-spacing:.03em;color:var(--mute)}
+#gateBrand i{width:.6rem;height:.6rem;border-radius:50%;background:var(--tally)}
+#gateBox h1{margin:.7rem 0 .5rem;font:700 2rem/1.1 var(--cond)}
+#gateBox p{margin:.2rem 0;font-size:1.05rem;color:#b4bfd2;line-height:1.45}
+#gateUrl{margin:.1rem 0 .9rem;font:600 1.15rem var(--body);color:var(--focus);word-break:break-all}
+#code{display:flex;gap:.4rem;margin:.5rem 0 1rem}
+#code span{display:grid;place-items:center;width:2.2rem;height:3rem;background:var(--raised);border:1px solid var(--line);border-radius:.45rem;font:700 1.7rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#fff}
+#code span.dash{width:1rem;background:none;border:0;color:var(--mute)}
+#gateSub{display:flex;align-items:center;gap:.6rem;margin-top:.2rem;color:var(--mute);font-size:.95rem}
+#gateSub::before{content:"";flex:none;width:.55rem;height:.55rem;border-radius:50%;background:var(--warn);animation:gp 1.6s ease-in-out infinite}
+@keyframes gp{50%{opacity:.3}}
+#qr{width:12.5rem;height:12.5rem;background:#fff;border-radius:.7rem;padding:.7rem}
+#qr svg{display:block;width:100%;height:100%}
+#gateBtns{display:flex;gap:1rem;margin-top:1.4rem}
+#gateBtns .mb{font-size:.95rem}
+#gateErr{color:var(--warn);font-size:.95rem;margin-top:.6rem;min-height:1.3rem}
+</style>
+</head>
+<body>
+
+<div id="main" hidden>
+  <nav id="side" aria-label="Sources and groups">
+    <div id="brand">Zibbit TV<i></i></div>
+    <div id="tree"></div>
+    <div id="setBtn"><div class="tn" id="setNode"><span class="nm">⚙  Settings</span></div></div>
+  </nav>
+  <section id="content">
+    <div id="top">
+      <div id="stage" tabindex="-1">
+        <video id="video" playsinline poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></video>
+        <div id="cc" hidden><span></span></div>
+        <div id="ov"><strong>Nothing is playing</strong><span>Pick a channel and press OK.</span></div>
+        <div id="fsinfo"><b></b><span></span><em id="fsres"></em></div>
+        <div id="recbadge" hidden></div>
+        <div id="vbar"><b></b><div class="trk"><i></i><u hidden></u></div><span></span></div>
+      </div>
+      <div id="details">
+        <div class="chip" id="chSearch">Search</div>
+        <div id="nowTop"><div id="nowLogo"></div><div style="min-width:0"><div id="nowName">No channel selected</div><div id="nowStat"><i class="lamp" id="lamp"></i><span id="statTxt">Idle</span></div></div></div>
+        <div id="nowProg"></div>
+        <div id="nowTime"></div>
+        <div id="bar" hidden><i></i></div>
+        <div id="nowDesc"></div>
+      </div>
+    </div>
+    <div id="tool">
+      <div class="chip" id="vSort" hidden></div>
+      <div id="hl"></div>
+    </div>
+    <div id="guide">
+      <div id="times"><div id="timesTrack"></div></div>
+      <div id="rows"></div>
+      <div id="gmsg" hidden></div>
+      <div id="wall" hidden></div>
+    </div>
+  </section>
+</div>
+
+<div id="gate" hidden>
+  <div id="gateBox">
+    <div>
+      <div id="gateBrand"><i></i>Zibbit</div>
+      <h1>Sign in with your phone</h1>
+      <p>Scan the code, or on any device open</p>
+      <div id="gateUrl"></div>
+      <p>and enter</p>
+      <div id="code"></div>
+      <p id="gateSub">Getting a code…</p>
+      <div id="gateErr"></div>
+      <div id="gateBtns"><div class="mb foc" id="gPw">Use a password instead</div></div>
+    </div>
+    <div id="qr" hidden></div>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="qrcode.js"></script>
+<script>
+/* The Zibbit TV page. Pairing first (it needs nothing but a code), then the real thing once a session exists.
+   hls.js / mpegts.js are loaded only after sign-in, because the server hands them to signed-in sessions only. */
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } }
+};
+const fmtTime = (sec) => new Date(sec * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const fmtRate = (bps) => (bps >= 1e9 ? (bps / 1e9).toFixed(2) + ' Gb/s' : bps >= 1e6 ? (bps / 1e6).toFixed(1) + ' Mb/s' : Math.round(bps / 1e3) + ' kb/s');
+const initials = (n) => String(n).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+const jpost = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+
+function toast(msg, ms) {
+  const t = $('#toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => { t.hidden = true; }, ms || 2800);
+}
+
+/* ================= modal layer + keyboard-style navigation =================
+   Every pop-up (keyboard, settings, groups...) is a "modal" with buttons marked .mb.
+   Arrow keys jump to the nearest button in that direction; OK presses it; Back closes. */
+const MODALS = [];
+function modal(cls) {
+  const root = el('div', 'modal'), box = el('div', 'mbox ' + (cls || ''));
+  root.append(box); document.body.append(root);
+  const m = { root, box, foc: null, onkey: null, onclose: null,
+    focus(e) { if (m.foc) m.foc.classList.remove('foc'); m.foc = e; if (e) { e.classList.add('foc'); if (e.scrollIntoView) e.scrollIntoView({ block: 'nearest' }); } },
+    close(v) { const i = MODALS.indexOf(m); if (i >= 0) MODALS.splice(i, 1); root.remove(); if (m.onclose) m.onclose(v); } };
+  MODALS.push(m);
+  return m;
+}
+const mbs = (m) => [...m.box.querySelectorAll('.mb')].filter((e) => !e.hidden && e.offsetParent !== null);
+function spatial(m, dir) {
+  const list = mbs(m), cur = m.foc;
+  if (!cur || !list.includes(cur)) { m.focus(list[0] || null); return; }
+  const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bs = Infinity;
+  const sideways = dir === 'left' || dir === 'right';
+  // sideways moves stay on the same row when it has anything that way (wide keys such as Space are far, and a near key in the row above would win)
+  const sameRow = sideways && list.some((e) => { if (e === cur) return false; const r = e.getBoundingClientRect(); return Math.abs(r.top + r.height / 2 - ay) < a.height / 2 && (dir === 'right' ? r.left + r.width / 2 > ax + 2 : r.left + r.width / 2 < ax - 2); });
+  for (const e of list) {
+    if (e === cur) continue;
+    const r = e.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const dx = x - ax, dy = y - ay;
+    if (sameRow && Math.abs(dy) >= a.height / 2) continue;
+    let main, cross;
+    if (dir === 'down') { if (dy <= 2) continue; main = dy; cross = Math.abs(dx); }
+    else if (dir === 'up') { if (dy >= -2) continue; main = -dy; cross = Math.abs(dx); }
+    else if (dir === 'right') { if (dx <= 2) continue; main = dx; cross = Math.abs(dy); }
+    else { if (dx >= -2) continue; main = -dx; cross = Math.abs(dy); }
+    const s = main + cross * 2.2;
+    if (s < bs) { bs = s; best = e; }
+  }
+  if (best) m.focus(best);
+}
+function modalKey(m, k, e) {
+  if (m.onkey && m.onkey(k, e)) return;
+  const f = m.foc;
+  if (k === 'ok') { if (f && f._act) f._act(); return; }
+  if (k === 'back') { m.close(null); return; }
+  if (!['up', 'down', 'left', 'right'].includes(k)) return;
+  if (f && f._cycle && (k === 'left' || k === 'right')) { f._cycle(k === 'right' ? 1 : -1); return; }
+  if (f && f.classList.contains('crow') && (k === 'up' || k === 'down')) { // long lists step through their siblings
+    let n = k === 'down' ? f.nextElementSibling : f.previousElementSibling;
+    while (n && n.hidden) n = k === 'down' ? n.nextElementSibling : n.previousElementSibling;
+    if (n && n.classList.contains('crow')) { m.focus(n); return; }
+  }
+  spatial(m, k);
+}
+const btn = (label, act, cls) => { const b = el('div', 'mb ' + (cls || ''), label); b._act = act; return b; };
+
+/* ---- on-screen keyboard (a physical keyboard types into it too) ---- */
+function osk({ title, value, mask, okLabel, hint }) {
+  return new Promise((resolve) => {
+    const m = modal('osk');
+    let v = value || '', shift = false, show = !mask, done = false;
+    const finish = (r) => { if (done) return; done = true; m.close(r); };
+    m.onclose = (r) => resolve(r === undefined ? null : r);
+    const inp = el('div'); inp.id = 'oskIn';
+    const draw = () => { inp.replaceChildren(document.createTextNode(show ? v : '•'.repeat(v.length)), el('u')); };
+    const keys = el('div'); keys.id = 'oskKeys';
+    const add = (row, label, act, cls) => { const b = btn(label, act, 'k ' + (cls || '')); row.append(b); return b; };
+    const rows = ['1234567890', 'qwertyuiop', 'asdfghjkl-', 'zxcvbnm._@'];
+    const letterBtns = [];
+    const typed = (ch) => { v += ch; draw(); };
+    for (const r of rows) {
+      const row = el('div', 'krow');
+      for (const ch of r) { const b = add(row, ch, () => { typed(shift ? ch.toUpperCase() : ch); if (shift) { shift = false; refresh(); } }); b._ch = ch; letterBtns.push(b); }
+      keys.append(row);
+    }
+    const r5 = el('div', 'krow');
+    const shiftB = add(r5, '⇧ Shift', () => { shift = !shift; refresh(); }, 'w2');
+    add(r5, ':', () => typed(':')); add(r5, '/', () => typed('/'));
+    add(r5, 'Space', () => typed(' '), 'w3');
+    add(r5, '⌫', () => { v = v.slice(0, -1); draw(); }, 'w2');
+    keys.append(r5);
+    const r6 = el('div', 'krow');
+    add(r6, 'Clear', () => { v = ''; draw(); }, 'w2');
+    if (mask) { const sb = add(r6, show ? 'Hide' : 'Show', () => { show = !show; sb.textContent = show ? 'Hide' : 'Show'; draw(); }, 'w2'); }
+    add(r6, 'Cancel', () => finish(null), 'w2');
+    add(r6, okLabel || 'OK', () => finish(v), 'w2 primary');
+    keys.append(r6);
+    const refresh = () => { for (const b of letterBtns) if (/[a-z]/.test(b._ch)) b.textContent = shift ? b._ch.toUpperCase() : b._ch; shiftB.classList.toggle('primary', shift); };
+    m.box.append(el('h2', '', title), ...(hint ? [el('p', '', hint)] : []), inp, keys);
+    draw();
+    m.focus(keys.querySelector('.k'));
+    m.onkey = (k, e) => {
+      if (e && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { typed(e.key); return true; }
+      if (e && e.key === 'Backspace') { v = v.slice(0, -1); draw(); return true; }
+      if (e && e.key === 'Enter' && e.shiftKey) { finish(v); return true; }
+      return false;
+    };
+  });
+}
+const OSK_KEYS_FROM_PHYSICAL = true; // eslint-disable-line no-unused-vars
+
+/* ================= network helpers ================= */
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  let j = null;
+  try { j = await r.json(); } catch { /* not json */ }
+  if (r.status === 401) { const e = new Error('Signed out'); e.status = 401; throw e; }
+  if (!r.ok) { const e = new Error((j && j.error) || `Request failed (${r.status})`); e.status = r.status; e.body = j; throw e; }
+  return j;
+}
+const send = (path, body, method = 'PUT') => api(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('Could not load ' + src)); document.head.append(s); });
+
+/* ================= profiles on this TV =================
+   Each profile paired on this TV leaves a token here (it carries TV rights only). The start screen offers them all. */
+const profiles = {
+  all() { try { const a = JSON.parse(store.get('tv.profiles')); return Array.isArray(a) ? a.filter((x) => x && x.name && x.token) : []; } catch { return []; } },
+  save(a) { store.set('tv.profiles', JSON.stringify(a)); },
+  put(name, token) { const a = this.all(), i = a.findIndex((x) => x.name === name); if (i >= 0) a[i].token = token; else a.push({ name, token }); this.save(a); },
+  drop(name) { this.save(this.all().filter((x) => x.name !== name)); }
+};
+const picked = { get() { try { return sessionStorage.getItem('tv.picked') === '1'; } catch { return false; } }, set(on) { try { if (on) sessionStorage.setItem('tv.picked', '1'); else sessionStorage.removeItem('tv.picked'); } catch { /* fine */ } } };
+function showProfiles(fromSettings) { // fromSettings: someone is signed in and chose Switch profile, so Back returns to them
+  $('#main').hidden = true; $('#gate').hidden = true;
+  const m = modal('who');
+  m.onkey = (k) => {
+    if (k !== 'back') return false;
+    if (fromSettings) { m.close(); $('#main').hidden = false; }  // otherwise there is nowhere to go back to
+    return true;
+  };
+  m.box.append(el('h2', '', 'Who’s watching?'));
+  const row = el('div', 'whorow');
+  async function pick(pr) {
+    try {
+      if (fromSettings && S.me && S.me.name === pr.name) { m.close(); $('#main').hidden = false; return; } // already them
+      if (fromSettings) stopPlayback('Switching', '');
+      const r = await send('/api/tv/switch', { token: pr.token }, 'POST');
+      profiles.put(r.name, r.token); picked.set(true); location.reload();
+    } catch (e) {
+      if (e.status === 401) { profiles.drop(pr.name); toast(pr.name + ' was signed out. Add the profile again.'); m.close(); if (profiles.all().length) showProfiles(); else showGate(); }
+      else toast('Couldn’t reach the server');
+    }
+  }
+  for (const pr of profiles.all()) { const t = btn('', () => pick(pr), 'tile'); t.append(el('span', 'av', initials(pr.name)), el('span', 'nm', pr.name)); row.append(t); }
+  const add = btn('', () => { m.close(); picked.set(true); showGate(); }, 'tile add'); add.append(el('span', 'av', '+'), el('span', 'nm', 'Add profile'));
+  row.append(add);
+  m.box.append(row);
+  m.focus(row.firstChild);
+}
+
+/* ================= pairing screen ================= */
+async function showGate(message) {
+  $('#main').hidden = true;
+  const gate = $('#gate'); gate.hidden = false;
+  let stop = false;
+  const sub = $('#gateSub'), err = $('#gateErr');
+  if (message) err.textContent = message;
+  const gpw = $('#gPw');
+  let busy = false;
+  const gateKey = (e) => {
+    if (busy || MODALS.length) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); passwordSignIn(); }
+  };
+  document.addEventListener('keydown', gateKey);
+  gpw.addEventListener('click', passwordSignIn);
+  async function passwordSignIn() {
+    if (busy) return;
+    busy = true;
+    try { await passwordFlow(); } finally { setTimeout(() => { busy = false; }, 300); }
+  }
+  async function passwordFlow() {
+    const name = await osk({ title: 'Sign in: your name', value: store.get('tv.name') || '', okLabel: 'Next' });
+    if (name == null || !name.trim()) return;
+    const pw = await osk({ title: 'Sign in: password for ' + name.trim(), mask: true, okLabel: 'Sign in' });
+    if (pw == null) return;
+    try {
+      const r = await jpost('/api/login', { name: name.trim(), password: pw });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { err.textContent = j.error || 'Could not sign in.'; return; }
+      store.set('tv.name', name.trim());
+      stop = true; location.reload();
+    } catch { err.textContent = 'Could not reach the server.'; }
+  }
+  while (!stop) {
+    let st;
+    try {
+      const r = await jpost('/api/pair/start', { label: 'Zibbit TV' });
+      st = await r.json();
+      if (!r.ok) { sub.textContent = st.error || 'Could not get a code.'; await sleep(15000); continue; }
+    } catch { sub.textContent = 'Can’t reach the server. Retrying…'; await sleep(5000); continue; }
+    $('#code').replaceChildren(...[...st.code].map((ch) => { const e = document.createElement('span'); if (ch === '-') e.className = 'dash'; e.textContent = ch; return e; }));
+    $('#gateUrl').textContent = st.url ? st.url.replace(/^https?:\/\//, '') : 'your Zibbit address, then /pair';
+    sub.textContent = 'Waiting for approval on your phone…';
+    const qr = $('#qr');
+    qr.hidden = true;
+    if (st.link && window.qrcode) {
+      try { const q = qrcode(0, 'M'); q.addData(st.link); q.make(); qr.innerHTML = q.createSvgTag({ scalable: true, margin: 0 }); qr.hidden = false; } catch { /* the code still works */ }
+    }
+    const until = Date.now() + st.expiresIn * 1000;
+    while (!stop && Date.now() < until) {
+      await sleep((st.interval || 3) * 1000);
+      try {
+        const r = await jpost('/api/pair/poll', { device: st.device });
+        const j = await r.json().catch(() => ({}));
+        if (j.status === 'approved') { stop = true; if (j.token) profiles.put(j.name, j.token); picked.set(true); sub.textContent = 'Approved. Starting…'; location.reload(); return; }
+        if (j.status === 'expired') break;
+      } catch { /* keep trying until the code runs out */ }
+    }
+  }
+}
+
+/* ================= signed-in app ================= */
+const S = {
+  providers: [], pid: null, me: {}, boots: new Map(), open: new Set(), sel: null,
+  items: [], total: 0, current: null, starting: false, playing: false, tearing: false, hls: null, ts: null,
+  triedTs: false, netRetries: 0, mediaRetries: 0, epg: [], playSeq: 0, needTap: false, wake: null, truncated: false,
+  timers: { pause: null, hidden: null, waiting: null, fs: null }, loadSeq: 0
+};
+const settings = Object.assign({ pauseStop: 120, hiddenStop: 120, cc: 0, ccSize: 1, uiSize: 1 }, (() => { try { return JSON.parse(store.get('tv.settings')) || {}; } catch { return {}; } })());
+const saveSettings = () => store.set('tv.settings', JSON.stringify(settings));
+const TV_BUILD = 'nov11-i'; let sizeFoot = null;
+const UI_SIZES = [[0, 'Small'], [1, 'Medium'], [2, 'Large']]; // Medium is the stylesheet's own size; the others only add a class (see html.sz0 / html.sz2)
+function applyUiSize() {
+  const c = document.documentElement.classList;
+  c.remove('sz0', 'sz2');
+  if (settings.uiSize === 0) c.add('sz0'); else if (settings.uiSize === 2) c.add('sz2');
+}
+applyUiSize();
+const CID = (() => {
+  let c = store.get('tv.cid');
+  if (!/^[A-Za-z0-9_-]{8,40}$/.test(c || '')) { c = 't' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); store.set('tv.cid', c); }
+  return c;
+})();
+const ALL = '__all__';
+/* the last few channels watched on this TV by this profile, newest first */
+const recent = {
+  key() { return 'tv.recent.' + (S.me.name || ''); },
+  all() { try { const a = JSON.parse(store.get(this.key())); return Array.isArray(a) ? a.filter((x) => x && x.p && x.s) : []; } catch { return []; } },
+  clear() { store.set(this.key(), '[]'); },
+  add(p, it, l) { const a = this.all().filter((x) => !(x.p === p && x.s === it.s)); const e = { p, s: it.s, n: it.n, i: it.i || '' }; if (l) e.l = l; a.unshift(e); store.set(this.key(), JSON.stringify(a.slice(0, 5))); }
+};
+const prov = (id) => S.providers.find((p) => p.id === (id || S.pid));
+const video = $('#video');
+let zone = 'side'; // side | tool | prev | guide | set
+let fullscreen = false;
+
+/* ---------- details panel ---------- */
+function nowNext() {
+  const t = Date.now() / 1000;
+  const i = S.epg.findIndex((e) => e.start <= t && t < e.end);
+  return i >= 0 ? S.epg[i] : null;
+}
+let rateLast = null, rateNow = 0;
+function renderNow() {
+  if (S.mode === 'vod') return;
+  const c = S.current;
+  const logo = $('#nowLogo'); logo.replaceChildren();
+  if (!c) {
+    $('#nowName').textContent = 'No channel selected';
+    for (const id of ['#nowProg', '#nowTime', '#nowDesc']) $(id).textContent = '';
+    $('#bar').hidden = true;
+    return;
+  }
+  if (c.i) { const img = new Image(); img.alt = ''; img.src = c.i; img.onerror = () => { img.remove(); logo.textContent = initials(c.n); }; logo.append(img); } else logo.textContent = initials(c.n);
+  $('#nowName').textContent = c.n;
+  const cur = nowNext();
+  $('#nowProg').textContent = cur ? cur.title : 'No guide data for this channel';
+  $('#nowTime').textContent = cur ? `${fmtTime(cur.start)} to ${fmtTime(cur.end)}` : '';
+  $('#nowDesc').textContent = cur && cur.desc ? cur.desc : '';
+  const bar = $('#bar'); bar.hidden = !cur;
+  if (cur) $('i', bar).style.width = Math.min(100, Math.max(0, ((Date.now() / 1000 - cur.start) / (cur.end - cur.start)) * 100)) + '%';
+  const fi = $('#fsinfo');
+  $('b', fi).textContent = c.n;
+  $('span', fi).textContent = cur ? `${cur.title}   ${fmtTime(cur.start)} to ${fmtTime(cur.end)}` : '';
+}
+async function loadCurrentEpg() {
+  const c = S.current;
+  if (!c) return;
+  try {
+    const j = await api(`/api/p/${c.p}/epg?s=${c.s}`);
+    if (S.current && S.current.s === c.s && S.current.p === c.p) { S.epg = j.list; renderNow(); }
+  } catch { /* guide is optional */ }
+}
+setInterval(() => {
+  if (!S.current) return;
+  const cur = nowNext();
+  if (!cur && S.epg.length === 0) return;
+  if (!cur || Date.now() / 1000 >= cur.end) loadCurrentEpg(); else renderNow();
+}, 15000);
+async function refreshStatus() {
+  if (S.mode === 'vod') return;
+  try {
+    const s = await api('/api/status');
+    const open = s.sessions.find((x) => x.live);
+    $('#lamp').className = 'lamp' + (open ? ' on' : '');
+    if (open) {
+      const t = performance.now(), key = open.p + '/' + open.s;
+      if (rateLast && rateLast.key === key && open.bytes >= rateLast.bytes && t > rateLast.t) {
+        const inst = ((open.bytes - rateLast.bytes) * 8) / ((t - rateLast.t) / 1000);
+        rateNow = rateNow ? rateNow * 0.5 + inst * 0.5 : inst;
+      } else rateNow = 0;
+      rateLast = { key, bytes: open.bytes, t };
+    } else { rateLast = null; rateNow = 0; }
+    $('#statTxt').textContent = open ? `Streaming ${rateNow ? fmtRate(rateNow) : ''}` : 'Idle';
+  } catch { $('#lamp').className = 'lamp'; $('#statTxt').textContent = 'Server unreachable'; }
+}
+(function poll() { if (!document.hidden && S.me.name !== undefined) refreshStatus(); setTimeout(poll, 4000); })();
+
+/* ---------- preview overlay + fullscreen ---------- */
+function showOverlay(title, sub, spinner) {
+  const o = $('#ov'); o.replaceChildren(); $('#stage').classList.remove('poster');
+  if (spinner) { const sp = el('div', 'spin'); const im = el('img'); im.src = '/icons/icon-192.png'; im.alt = ''; sp.append(im); o.append(sp); }
+  o.append(el('strong', '', title));
+  if (sub) o.append(el('span', '', sub));
+  o.hidden = false;
+}
+const hideOverlay = () => { $('#ov').hidden = true; $('#stage').classList.remove('poster'); };
+function setFullscreen(on) {
+  fullscreen = on;
+  $('#stage').classList.toggle('full', on);
+  if (on) pulseInfo(); else $('#fsinfo').classList.remove('show');
+  if (typeof paintRec === 'function') { paintRec(); if (on && S.me && S.me.rec) recRefresh(); }
+  sizeCaptions();
+}
+/* the size of the picture the stream really delivers, shown under the channel name when full screen opens */
+function resText() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) return '';
+  const name = h >= 2000 ? '4K' : h >= 1400 ? '1440p' : h >= 1000 ? '1080p' : h >= 700 ? '720p' : h + 'p';
+  return `${name}  ·  ${w}×${h}`;
+}
+function pulseInfo() {
+  const fi = $('#fsinfo');
+  if (S.rw && !S.vod && $('#vbar').classList.contains('show')) return; // the rewind bar already says what is on
+  fi.classList.add('show');
+  $('#fsres').textContent = resText();
+  clearTimeout(S.timers.fs);
+  S.timers.fs = setTimeout(() => fi.classList.remove('show'), 4500);
+}
+
+/* ---------- captions (CEA-608 from the stream, drawn by us so the size is ours to set) ---------- */
+const CC_SIZES = [['Small', 1.9], ['Medium', 2.5], ['Large', 3.2], ['Extra large', 4]]; // percent of the picture width
+const ccBox = $('#cc'), ccSpan = $('span', ccBox);
+function sizeCaptions() { ccBox.style.fontSize = ($('#stage').clientWidth * CC_SIZES[settings.ccSize][1]) / 100 + 'px'; }
+function drawCC() {
+  let txt = '';
+  if (settings.cc) {
+    for (const t of video.textTracks) {
+      if (t.kind === 'metadata') continue;
+      if (t.mode === 'disabled') t.mode = 'hidden';
+      const a = t.activeCues;
+      if (a && a.length) { txt = [...a].map((c) => c.text).join('\n'); break; }
+    }
+  }
+  ccSpan.textContent = txt;
+  ccBox.hidden = !txt;
+}
+function bindTrack(t) {
+  if (!t || t._z || (t.kind !== 'captions' && t.kind !== 'subtitles')) return;
+  t._z = true; t.mode = 'hidden';
+  t.addEventListener('cuechange', drawCC);
+}
+try { video.textTracks.addEventListener('addtrack', (e) => bindTrack(e.track)); } catch { /* old engine: no captions */ }
+window.addEventListener('resize', sizeCaptions);
+window.__tvCC = { bindTrack, drawCC, settings }; // lets the self-test drive it
+sizeCaptions();
+
+/* ---------- playback (the same flow as the phone page) ---------- */
+function clearTimers() { for (const k of ['pause', 'hidden', 'waiting']) { clearTimeout(S.timers[k]); S.timers[k] = null; } }
+function teardownPlayer() {
+  S.tearing = true;
+  if (S.hls) { try { S.hls.destroy(); } catch { /* gone */ } S.hls = null; }
+  if (S.ts) { try { S.ts.pause(); S.ts.unload(); S.ts.detachMediaElement(); S.ts.destroy(); } catch { /* gone */ } S.ts = null; }
+  try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
+  S.playing = false; S.tearing = false; S.needTap = false;
+  scrubStop(); { const vb = $('#vbar'); if (vb) vb.classList.remove('show'); }
+  ccSpan.textContent = ''; ccBox.hidden = true;
+  releaseWake();
+}
+async function acquireWake() { try { if (navigator.wakeLock && !S.wake) { S.wake = await navigator.wakeLock.request('screen'); S.wake.addEventListener('release', () => { S.wake = null; }); } } catch { /* not allowed */ } }
+function releaseWake() { try { if (S.wake) S.wake.release(); } catch { /* ignore */ } S.wake = null; }
+function stopServer(c) { if (c) send('/api/stop', { p: c.p, s: c.s, cid: CID }, 'POST').catch(() => {}).then(refreshStatus); }
+function stopPlayback(title, sub) {
+  if (S.vod) return stopVod(title, sub);
+  S.playSeq++;
+  clearTimers();
+  const c = S.current;
+  S.starting = false;
+  teardownPlayer();
+  stopServer(c);
+  if (fullscreen) setFullscreen(false);
+  renderNow(); renderGuide();
+  showOverlay(title || 'Stopped', sub || 'Press OK on a channel to watch.');
+}
+/* tell the server why the player gave up (the reason only, no addresses), so it shows in the Zibbit log next to the channel */
+function noteFail(why) {
+  const c = S.current;
+  if (c) send('/api/clientlog', { p: c.p, s: c.s, why: String(why).slice(0, 160) }, 'POST').catch(() => {});
+}
+async function fail(title, sub) {
+  const c = S.current, was = S.playing;
+  let t = title, u = sub || 'Try again in a moment.';
+  if (was && c) {
+    try {
+      const st = await api('/api/status');
+      if (S.current === c && !st.sessions.some((x) => x.p === c.p && x.s === c.s)) { t = 'Someone else took over'; u = 'Another profile started watching and the provider only allows so many streams at once. Press OK on the channel to take it back.'; }
+    } catch { /* generic message */ }
+  }
+  if (S.current !== c) return;
+  stopPlayback(t, u);
+}
+async function play(it, take) {
+  const seq = ++S.playSeq;
+  showOverlay('Connecting', it.n, true);
+  try { await send('/api/claim', { p: S.pid, s: it.s, cid: CID, take: !!take }, 'POST'); }
+  catch (e) {
+    if (seq !== S.playSeq) return;
+    if (e.status === 409 && e.body && e.body.busy) return askBusy(it, e.body);
+    if (e.status === 401) return;
+  }
+  if (seq !== S.playSeq) return;
+  startPlay(it);
+}
+function askBusy(it, b) {
+  if (S.playing) hideOverlay(); else if (S.current) showOverlay('Stopped', 'Press OK on a channel to watch.'); else showOverlay('Nothing is playing', 'Pick a channel and press OK.');
+  const m = modal('busy');
+  const prog = (b.watching || []).map((w) => w.name).filter(Boolean)[0];
+  const names = b.by.join(' and ');
+  m.box.append(el('h2', '', 'Already watching'),
+    el('p', '', `${names} ${b.by.length > 1 ? 'are' : 'is'} already watching${prog && b.by.length === 1 ? ' ' + prog : ''} on ${prov().name}, which allows ${b.max} stream${b.max === 1 ? '' : 's'} at a time. Watching here will stop theirs.`));
+  const row = el('div', 'mrow');
+  const go = btn('Watch anyway', () => { m.close(); play(it, true); }, 'primary');
+  row.append(go, btn('Cancel', () => m.close()));
+  m.box.append(row);
+  m.focus(go);
+}
+function startPlay(it) {
+  clearTimers();
+  const prev = S.current;
+  teardownPlayer();
+  if (prev && (prev.s !== it.s || prev.p !== S.pid)) stopServer(prev);
+  S.current = { s: it.s, n: it.n, i: it.i, p: S.pid };
+  S.epg = []; S.triedTs = false; S.netRetries = 0; S.mediaRetries = 0; S.liveJumps = 0; S.starting = true;
+  showOverlay('Connecting', it.n, true);
+  renderNow(); renderGuide(); setTimeout(loadCurrentEpg, 2000); /* stream first, guide after, so the provider isn't asked for both at once */
+  send('/api/last', { p: S.pid, s: it.s }).catch(() => {});
+  { // remember which guide list this channel was reached from, so jumping back to it lands in that list
+    let l = S.nextSel || (S.sel && S.sel.p === S.pid ? S.sel : null); S.nextSel = null;
+    if (l && (l.k === 'search' || l.k === 'recent')) l = null;
+    recent.add(S.pid, it, l ? (l.k === 'fav' ? { p: l.p, k: 'fav' } : l.k === 'all' ? { p: l.p, k: 'all' } : { p: l.p, id: l.id, k: l.k }) : null);
+  }
+  const base = `/live/${S.pid}/${it.s}`, q = `?cid=${encodeURIComponent(CID)}`;
+  S.rw = !!(S.me && S.me.rewind > 0); // the server keeps a buffer for this channel, so the picture can be wound back
+  if (prov().format === 'ts' && !S.rw) startTs(`${base}.ts${q}`); else startHls(`${base}.m3u8${q}`, `${base}.ts${q}`);
+}
+function needTap(why) {
+  S.needTap = true;
+  showOverlay('Ready', why && why.name && why.name !== 'NotAllowedError' ? `The browser said: ${why.name}. Press OK to start.` : 'Press OK to start.');
+}
+/* A start that was cut off by a newer channel or load rejects with AbortError. That says nothing about the channel now on screen,
+   so it must not put up the "Ready" screen: ignore it when the player is gone, try once more when it is still the current one. */
+function startedOk(isCur, again) {
+  return (e) => {
+    if (e && e.name === 'AbortError') {
+      if (!isCur()) return;
+      setTimeout(() => { if (isCur() && video.paused) { const p = video.play(); if (p && p.catch) p.catch((e2) => { if (isCur() && !(e2 && e2.name === 'AbortError')) needTap(e2); }); } }, 400);
+      return;
+    }
+    if (isCur()) needTap(e);
+  };
+}
+function startHls(url, tsUrl) {
+  if (window.Hls && Hls.isSupported()) {
+    const hls = new Hls({ maxBufferLength: 15, maxMaxBufferLength: 30, backBufferLength: 10, liveSyncDurationCount: 3, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 3, fragLoadingMaxRetry: 4, enableWorker: true, enableCEA708Captions: true, subtitleDisplay: false });
+    S.hls = hls;
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { const p = video.play(); if (p && p.catch) p.catch(startedOk(() => S.hls === hls)); });
+    hls.on(Hls.Events.ERROR, (_, d) => {
+      if (!d.fatal || S.hls !== hls) return;
+      const net = d.type === Hls.ErrorTypes.NETWORK_ERROR;
+      if (net && (d.details === 'manifestLoadError' || d.details === 'manifestLoadTimeOut') && !S.triedTs && window.mpegts) {
+        S.triedTs = true; S.rw = false; teardownPlayer(); showOverlay('Connecting', 'Trying the TS stream', true); startTs(tsUrl); return;
+      }
+      /* the picture fell behind what the server's buffer still holds (the segment it wants is gone): the only useful place to be is live */
+      if (net && d.details === 'fragLoadError' && d.response && d.response.code === 404 && S.rw && S.liveJumps++ < 2) {
+        const r = rng();
+        noteFail(`recovering to live: ${d.frag && d.frag.sn != null ? 'segment ' + d.frag.sn + ' gone, ' : ''}at ${Math.round(video.currentTime)}s, buffer ${Math.round(r.lo)}-${Math.round(r.hi)}s`);
+        hls.startLoad(-1); return;
+      }
+      if (net && S.netRetries++ < 3) { hls.startLoad(); return; }
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR && S.mediaRetries++ < 2) { hls.recoverMediaError(); return; }
+      const why = `${d.type}/${d.details}${d.response && d.response.code ? ' HTTP ' + d.response.code : ''}${d.frag && d.frag.sn != null ? ' segment ' + d.frag.sn : ''}${d.reason ? ' ' + d.reason : ''}`;
+      { const r = rng(); noteFail(why + ` | at ${Math.round(video.currentTime)}s, buffer ${Math.round(r.lo)}-${Math.round(r.hi)}s`); }
+      fail('This channel isn’t responding');
+    });
+    hls.loadSource(url);
+    hls.attachMedia(video);
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = url;
+    const p = video.play(); if (p && p.catch) p.catch(() => {});
+  } else fail('This player can’t play live streams');
+}
+function startTs(url) {
+  if (!(window.mpegts && mpegts.isSupported())) return fail('This player can’t play TS streams');
+  const pl = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true, liveBufferLatencyMaxLatency: 8, liveBufferLatencyMinRemain: 1.5, autoCleanupSourceBuffer: true });
+  S.ts = pl;
+  pl.attachMediaElement(video);
+  pl.on(mpegts.Events.ERROR, (type, detail) => { if (S.ts === pl) { const why = `ts/${type}/${detail}`; noteFail(why); fail('This channel isn’t responding'); } });
+  pl.load();
+  const p = pl.play(); if (p && p.catch) p.catch(startedOk(() => S.ts === pl));
+}
+video.addEventListener('playing', () => {
+  S.playing = true; S.starting = false; S.needTap = false;
+  clearTimeout(S.timers.waiting); clearTimeout(S.timers.pause);
+  hideOverlay(); renderNow(); renderGuide(); acquireWake(); refreshStatus();
+  try { for (const t of video.textTracks) bindTrack(t); } catch { /* no tracks */ }
+});
+video.addEventListener('waiting', () => {
+  if (!S.playing) return;
+  clearTimeout(S.timers.waiting);
+  S.timers.waiting = setTimeout(() => showOverlay('Buffering', '', true), 1200);
+});
+video.addEventListener('pause', () => {
+  if (S.tearing || !S.playing || video.ended || !settings.pauseStop) return;
+  clearTimeout(S.timers.pause);
+  // a paused channel with a rewind buffer is worth keeping for as long as the buffer reaches back; after that the place is gone anyway
+  const secs = S.rw && !S.vod && S.me && S.me.rewind > 0 ? Math.max(settings.pauseStop, S.me.rewind * 60) : settings.pauseStop;
+  S.timers.pause = setTimeout(() => stopPlayback('Stopped after a pause', 'Press OK on a channel to watch.'), secs * 1000);
+});
+video.addEventListener('play', () => clearTimeout(S.timers.pause));
+video.addEventListener('resize', () => { $('#fsres').textContent = resText(); });
+video.addEventListener('error', () => { if (!S.tearing && S.current && (S.starting || S.playing)) { const why = `video/error ${video.error ? video.error.code + ' ' + (video.error.message || '') : ''}`.trim(); noteFail(why); fail('This channel isn’t responding'); } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if ((S.playing || S.starting) && settings.hiddenStop) {
+      clearTimeout(S.timers.hidden);
+      S.timers.hidden = setTimeout(() => stopPlayback('Stopped while you were away', 'Press OK on a channel to watch.'), settings.hiddenStop * 1000);
+    }
+  } else { clearTimeout(S.timers.hidden); if (S.playing) acquireWake(); }
+});
+window.addEventListener('pagehide', () => {
+  const c = S.current;
+  if (c && (S.playing || S.starting) && navigator.sendBeacon) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ p: c.p, s: c.s, cid: CID })], { type: 'application/json' }));
+});
+
+/* ---------- adult content lock ---------- */
+/* Groups that look adult are locked behind the profile's PIN. The server hides their channels and titles and refuses to play them;
+ * this is the PIN pad, the lock marks, and keeping the screen in step with the server. */
+S.adult = { on: false, open: true, hasPin: false };
+const lockMark = (c) => (c && c.lock ? (S.adult.open ? '🔓 ' : '🔒 ') : '');
+async function adultRefresh(reload) { // pick up the server's view again after the lock changed
+  const open = [...S.open];
+  S.boots.clear(); S.vodCats.clear(); renderTree();
+  for (const pid of open) await ensureBoot(pid);
+  for (const pid of S.vodOpen) await vodCatsFor(pid);
+  if (reload === false) return;
+  if (S.mode === 'vod') { if (V.sel) await vodOpenList(V.sel); } else if (S.sel) await loadItems();
+}
+function tvPin() { // the PIN pad; true when the person got in, false when they went Back
+  return new Promise((resolve) => {
+    if (!S.adult.hasPin) { // a TV has no keyboard worth typing a password on: the PIN is set on a phone or computer
+      const m = modal(); m.box.append(el('h2', '', 'No PIN yet'), el('p', '', 'Open Zibbit on a phone or computer, go to Settings, and choose Set or change PIN. Then come back here.'));
+      const ok = btn('OK', () => m.close(false), 'primary'); m.box.append(ok); m.focus(ok); m.onclose = () => resolve(false);
+      return;
+    }
+    const m = modal('who');
+    let pin = '', busy = false, until = 0, tick = null;
+    m.onclose = (r) => { clearInterval(tick); resolve(r === true); };
+    const dots = el('div', 'pindots'); for (let i = 0; i < 4; i++) dots.append(el('i'));
+    const msg = el('p', 'pinmsg'); const pad = el('div', 'pinpad'); pad.id = 'pinPad';
+    const keys = [];
+    const paint = () => { [...dots.children].forEach((d, i) => d.classList.toggle('on', i < pin.length)); };
+    const say = (t, bad) => { msg.textContent = t; msg.className = 'pinmsg' + (bad ? ' bad' : ''); };
+    const out = () => until > Date.now();
+    const dim = () => { for (const b of keys) if (b._k !== 'back') b.style.opacity = busy || out() ? '.4' : ''; };
+    const countdown = () => {
+      clearInterval(tick);
+      const show = () => { const n = Math.max(0, Math.ceil((until - Date.now()) / 1000)); if (!n) { clearInterval(tick); say(''); dim(); return; } say(`Too many wrong PINs. Try again in ${n >= 90 ? Math.ceil(n / 60) + ' min' : n + ' s'}.`, true); };
+      show(); dim(); tick = setInterval(show, 1000);
+    };
+    const submit = async () => {
+      busy = true; dim(); say('Checking…');
+      try { const j = await send('/api/adult/unlock', { pin }, 'POST'); S.adult.open = !!j.open; busy = false; m.close(true); return; }
+      catch (e) {
+        pin = ''; paint();
+        const w = e.body && e.body.wait;
+        if (w) { until = Date.now() + w * 1000; countdown(); }
+        else say(e.status === 403 ? `That PIN isn’t right.${e.body && e.body.left ? ` ${e.body.left} ${e.body.left === 1 ? 'try' : 'tries'} left.` : ''}` : e.message, true);
+      }
+      busy = false; dim();
+    };
+    const press = (d) => { if (busy || out()) return; if (d === 'del') pin = pin.slice(0, -1); else if (pin.length < 4) pin += d; paint(); if (pin.length === 4) submit(); else say(''); };
+    for (const k of ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'back']) {
+      const b = btn(k === 'del' ? '⌫' : k === 'back' ? 'Back' : k, () => (k === 'back' ? m.close(false) : press(k)));
+      b._k = k; if (k === 'back') b.style.fontSize = '1.1rem'; keys.push(b); pad.append(b);
+    }
+    m.onkey = (k, e) => { if (e && /^\d$/.test(e.key)) { press(e.key); return true; } if (e && e.key === 'Backspace') { press('del'); return true; } return false; };
+    m.box.append(el('h2', '', 'Enter your PIN'), dots, msg, pad); paint();
+    m.focus(keys[4]);
+    api('/api/adult/status').then((j) => { if (j.wait) { until = Date.now() + j.wait * 1000; countdown(); } }).catch(() => {});
+  });
+}
+async function tvNeedPin() { // true when blocked content is open to this person (asking for the PIN first if it isn't)
+  if (!S.adult.on || S.adult.open) return true;
+  if (!(await tvPin())) return false;
+  await adultRefresh(false);
+  return true;
+}
+let lastAdultPing = 0;
+function adultPing() { if (!S.adult.on || !S.adult.open || Date.now() - lastAdultPing < 60000) return; lastAdultPing = Date.now(); send('/api/adult/ping', {}, 'POST').catch(() => {}); }
+setInterval(async () => { // the server locks after idle time: notice, and hide what should now be hidden
+  if (!S.adult.on || !S.adult.open) return;
+  try { const j = await api('/api/adult/status'); if (!j.open) { S.adult.open = false; toast('Blocked channels locked'); await adultRefresh(true); } } catch { /* try again later */ }
+}, 60000);
+async function vodHistVisible() { // Continue watching, minus titles in categories the lock is holding back
+  const all = vodHist.all();
+  if (!S.adult.on || S.adult.open || !all.length) return all;
+  const held = new Set();
+  for (const pid of new Set(all.map((h) => h.pid))) {
+    try {
+      const r = await send(`/api/p/${pid}/vod-held`, { movie: all.filter((h) => h.pid === pid && h.k === 'movie').map((h) => h.id), show: all.filter((h) => h.pid === pid && h.k === 'show').map((h) => h.id) }, 'POST');
+      for (const k of ['movie', 'show']) for (const id of r[k] || []) held.add(pid + '|' + k + '|' + id);
+    } catch { /* show them; opening a locked title is refused anyway */ }
+  }
+  return all.filter((h) => !held.has(h.pid + '|' + h.k + '|' + h.id));
+}
+
+/* ---------- Choose movie and show categories (tick to include) ---------- */
+async function openVodGroups(pid) {
+  let j; try { j = await api(`/api/p/${pid}/vod-cats?all=1`); } catch (e) { return toast('Couldn’t load the categories: ' + e.message); }
+  if (!j.supported) return toast('This provider has no movies or shows');
+  const m = modal(); m.box.append(el('h2', '', `Movie and show categories from ${prov(pid).name}`));
+  m.box.append(el('p', '', 'Tick the categories you want. Only ticked ones show up in the lists, in search and in Recently added.'));
+  const kinds = [['movie', 'Movies', j.movies || [], j.movieSel], ['show', 'Shows', j.shows || [], j.showSel]];
+  const sel = {}, was = {};
+  for (const [k, , cats, saved] of kinds) { sel[k] = new Set(saved || cats.map((c) => c.id)); was[k] = new Set(sel[k]); } // nothing chosen yet means everything shows
+  const rows = [];
+  const save = btn('Save', async () => {
+    try {
+      for (const [k, , cats] of kinds) {
+        if (sel[k].size === was[k].size && [...sel[k]].every((x) => was[k].has(x))) continue;
+        const everything = cats.every((c) => sel[k].has(c.id)); // all ticked is the same as never having chosen
+        await send(`/api/p/${pid}/vod-groups`, { kind: k, groups: everything ? null : [...sel[k]] });
+      }
+      m.close(); toast('Saved');
+      S.vodCats.delete(pid); await vodCatsFor(pid);
+      if (V.sel && V.sel.k === 'list' && V.sel.p === pid && V.sel.cat && !(sel[V.sel.kind] || new Set()).has(V.sel.cat)) { V.sel = null; if (S.mode === 'vod') { wallMsg('Movies & Shows', 'Open a provider on the left, then pick Movies or Shows and a category.'); } }
+      else if (S.mode === 'vod' && V.sel && V.sel.k === 'list') await vodOpenList(V.sel);
+    } catch (e) { toast('Couldn’t save: ' + e.message); }
+  }, 'primary');
+  const shown = () => rows.filter((r) => !r.hidden);
+  const setShown = (on) => { for (const r of shown()) { if (on) sel[r._k].add(r._id); else sel[r._k].delete(r._id); r._paint(); } };
+  const filt = btn('Filter…', async () => {
+    const q = await osk({ title: 'Filter categories', value: filt._q || '', okLabel: 'Filter' });
+    if (q == null) return;
+    filt._q = q.trim().toLowerCase(); filt.textContent = filt._q ? `Filter: ${filt._q}` : 'Filter…';
+    for (const r of rows) r.hidden = !!filt._q && !r._name.includes(filt._q);
+    for (const h of list.querySelectorAll('.note')) h.hidden = !!filt._q;
+    const f = shown()[0]; if (f) m.focus(f);
+  });
+  const top = el('div', 'mrow'); top.append(save, filt, btn('Select shown', () => setShown(true)), btn('Clear shown', () => setShown(false)), btn('Cancel', () => m.close()));
+  m.box.append(top);
+  const list = el('div'); list.id = 'catList';
+  for (const [k, label, cats] of kinds) {
+    if (!cats.length) continue;
+    list.append(el('div', 'note', label));
+    for (const c of cats) {
+      const r = el('div', 'mb crow'); r._name = (c.name || '').toLowerCase(); r._k = k; r._id = c.id;
+      const bx = el('span', 'bx'); r.append(bx, el('span', 'nm', (c.lock ? '🔒 ' : '') + (c.name || '(unnamed)')), el('span', 'ct', c.count.toLocaleString()));
+      r._paint = () => { r.classList.toggle('on', sel[k].has(c.id)); bx.textContent = sel[k].has(c.id) ? '✓' : ''; };
+      r._act = () => { if (sel[k].has(c.id)) sel[k].delete(c.id); else sel[k].add(c.id); r._paint(); };
+      r._paint(); rows.push(r); list.append(r);
+    }
+  }
+  m.box.append(list, el('div', 'note', 'OK ticks or unticks. Move up to the top for Save, Select shown and Clear shown.'));
+  m.focus(save);
+}
+
+/* ---------- sidebar tree ---------- */
+const T = { nodes: [], i: 0, top: 0 };
+function bootOf(pid) { return S.boots.get(pid); }
+function buildNodes() { // the two modes and Search come first, then whichever mode is showing
+  const top = [{ t: 'mode', m: 'tv', label: 'Live TV' }, { t: 'mode', m: 'vod', label: 'Movies & Shows' }, { t: 'gsearch', label: 'Search' }];
+  const saved = S.me && S.me.rec ? [{ t: 'recs', label: 'Recordings', ct: REC.items.length || null }, { t: 'dls', label: 'Downloads', ct: DL.items.length || null }] : []; // last in the list, just above Settings
+  return top.concat(S.mode === 'vod' ? vodNodes() : liveNodes(), saved);
+}
+function liveNodes() {
+  const out = [];
+  for (const p of S.providers) {
+    out.push({ t: 'prov', p: p.id, label: p.name });
+    if (!S.open.has(p.id)) continue;
+    const b = bootOf(p.id);
+    if (!b) { out.push({ t: 'info', label: 'Loading…', child: true }); continue; }
+    if (b.err) { out.push({ t: 'retry', p: p.id, label: 'Couldn’t load. OK to retry', child: true }); continue; }
+    out.push({ t: 'fav', p: p.id, label: '★  Favorites', ct: b.favs.size, child: true });
+    out.push({ t: 'all', p: p.id, label: 'All channels', child: true });
+    for (const g of b.groups) { const c = b.cats.get(g); if (c) out.push({ t: 'grp', p: p.id, id: g, label: lockMark(c) + (c.name || '(unnamed)'), lock: !!c.lock, ct: c.count, child: true }); }
+    if (!b.groups.length) out.push({ t: 'manage', p: p.id, label: 'Manage groups…', child: true, dim: true });
+  }
+  return out;
+}
+const isSel = (n) => vodSelMatch(n) || (n.t === 'gsearch' && S.mode === 'tv' && LS.on) || (S.mode === 'tv' && !LS.on && S.sel && n.p === S.sel.p && ((n.t === 'fav' && S.sel.k === 'fav') || (n.t === 'recent' && S.sel.k === 'recent') || (n.t === 'all' && S.sel.k === 'all') || (n.t === 'grp' && S.sel.k === 'grp' && S.sel.id === n.id)));
+function renderTree() {
+  const keep = T.nodes[T.i];
+  T.nodes = buildNodes();
+  if (keep) { const j = T.nodes.findIndex((n) => n.t === keep.t && n.p === keep.p && n.id === keep.id && n.m === keep.m && n.k === keep.k && n.sort === keep.sort); if (j >= 0) T.i = j; }
+  T.i = Math.max(0, Math.min(T.i, T.nodes.length - 1));
+  const box = $('#tree'); box.replaceChildren();
+  const frag = document.createDocumentFragment();
+  T.nodes.forEach((n, i) => {
+    const d = el('div', 'tn' + (n.t === 'prov' || n.t === 'vprov' ? ' prov' : '') + (n.child ? ' child' : '') + (n.c2 ? ' c2' : '') + (n.t === 'mode' && n.m === S.mode ? ' on' : '') + (n.dim || n.t === 'info' ? ' dim' : '') + (isSel(n) ? ' sel' : ''));
+    d.dataset.i = i;
+    const arrow = n.t === 'prov' ? (S.open.has(n.p) ? '▾  ' : '▸  ') : n.t === 'vprov' ? (S.vodOpen.has(n.p) ? '▾  ' : '▸  ') : n.t === 'vkind' ? (S.vodKind.has(n.p + '|' + n.k) ? '▾  ' : '▸  ') : n.t === 'mode' ? (n.m === S.mode ? '●  ' : '○  ') : n.t === 'gsearch' ? '⌕  ' : '';
+    d.append(el('span', 'nm', arrow + n.label));
+    if (n.ct != null) d.append(el('span', 'ct', n.ct.toLocaleString()));
+    d.addEventListener('click', () => { T.i = i; setZone('side'); treeEnter(); });
+    n.el = d; frag.append(d);
+  });
+  box.append(frag);
+  paintTreeFocus();
+}
+function paintTreeFocus() {
+  const box = $('#tree');
+  box.querySelectorAll('.foc').forEach((e) => e.classList.remove('foc'));
+  $('#setNode').classList.remove('foc');
+  if (zone === 'set') { $('#setNode').classList.add('foc'); return; }
+  const n = T.nodes[T.i];
+  if (n && n.el) {
+    if (zone === 'side') n.el.classList.add('foc');
+    // scroll the list so the focused row stays visible (the list never scrolls by itself)
+    const eh = n.el.offsetHeight, y = n.el.offsetTop, vh = box.clientHeight;
+    if (y < T.top) T.top = y; else if (y + eh > T.top + vh) T.top = y + eh - vh;
+    box.scrollTop = T.top;
+  }
+}
+async function ensureBoot(pid) {
+  if (bootOf(pid) && !bootOf(pid).err) return bootOf(pid);
+  S.boots.delete(pid); renderTree();
+  try {
+    const b = await api(`/api/p/${pid}/bootstrap`);
+    const cats = new Map(b.categories.map((c) => [c.id, c]));
+    if (b.adult) S.adult = b.adult;
+    S.boots.set(pid, { boot: b, cats, groups: b.groups.slice(), favs: new Set(b.favorites) });
+  } catch (e) {
+    if (e.status === 401) return location.reload();
+    S.boots.set(pid, { err: e.message });
+  }
+  renderTree();
+  return bootOf(pid);
+}
+async function treeEnter() {
+  const n = T.nodes[T.i];
+  if (!n) return;
+  if (n.t === 'mode') return setMode(n.m);
+  if (n.t === 'gsearch') return S.mode === 'vod' ? vodSearch() : doSearch();
+  if (n.t === 'recs') return recList();
+  if (n.t === 'dls') return dlList();
+  if (n.t[0] === 'v') return vodEnter(n);
+  if (n.t === 'prov') {
+    if (S.open.has(n.p)) { S.open.delete(n.p); renderTree(); } else { S.open.add(n.p); renderTree(); await ensureBoot(n.p); }
+    return;
+  }
+  if (n.t === 'retry') { S.boots.delete(n.p); await ensureBoot(n.p); return; }
+  if (n.t === 'manage') return openGroups(n.p);
+  if (n.t === 'info') return;
+  if (n.t === 'grp' && n.lock && !S.adult.open && !(await tvNeedPin())) return; // Back on the PIN pad leaves you in the list
+  await select({ p: n.p, k: n.t, id: n.id }); // the focus stays in the sidebar so the next group is one press away; Right goes to the guide
+}
+function treeMove(d) {
+  const j = T.i + d;
+  if (j < 0 || j >= T.nodes.length) { if (d > 0) setZone('set'); return; }
+  T.i = j; paintTreeFocus();
+}
+
+/* ---------- choosing what the guide lists ---------- */
+async function select(sel) {
+  lsOff();
+  if (sel.p !== S.pid) { S.pid = sel.p; }
+  S.sel = sel;
+  store.set('tv.sel', JSON.stringify(sel));
+  renderTree();
+  await loadItems();
+}
+/* the history entries this person may see right now: while adult content is locked, the server refuses a locked channel, so those are left out */
+async function recentVisible() {
+  const rec = recent.all();
+  if (!S.adult.on || S.adult.open || !rec.length) return rec;
+  const ok = await Promise.all(rec.map((r) => api(`/api/p/${r.p}/channel?s=${encodeURIComponent(r.s)}`).then(() => true).catch(() => false)));
+  return rec.filter((r, i) => ok[i]);
+}
+async function recentItems(pid) {
+  const got = await Promise.all(recent.all().filter((x) => x.p === pid).map((x) => api(`/api/p/${pid}/channel?s=${x.s}`).catch(() => null)));
+  const items = got.filter(Boolean);
+  return { items, total: items.length, truncated: false };
+}
+async function loadItems() {
+  const sel = S.sel, seq = ++S.loadSeq;
+  if (!sel) return;
+  const pid = sel.p;
+  let path;
+  if (sel.k === 'fav') path = `/api/p/${pid}/channels?fav=1`;
+  else if (sel.k === 'recent') path = null;
+  else if (sel.k === 'search') path = `/api/p/${pid}/channels?q=${encodeURIComponent(sel.q)}`;
+  else if (sel.k === 'all') path = `/api/p/${pid}/channels?cat=${ALL}`;
+  else path = `/api/p/${pid}/channels?cat=${encodeURIComponent(sel.id)}`;
+  gmsg('Loading…', pid === S.pid && prov() ? prov().name : '');
+  try {
+    const j = path ? await api(path) : await recentItems(pid);
+    if (seq !== S.loadSeq) return;
+    S.items = j.items; S.total = j.total; S.truncated = !!j.truncated;
+    if (j.locked) { S.items = []; S.total = 0; updateToolbar(); layoutGuide(); renderGuide(); return gmsg('This group is locked', 'Choose it from the list on the left to enter your PIN.'); }
+    G.i = 0; G.top = 0; G.retries = 0;
+    // start on the channel that is playing, if it is in this list
+    if (S.current && S.current.p === pid) { const k = S.items.findIndex((x) => x.s === S.current.s); if (k >= 0) G.i = k; }
+    G.gt = Date.now() / 1000; G.gx = null;
+    G.bg = [];
+    if (S.items.length) {
+      (async () => {
+        if (!G.ext.has(pid)) { try { G.ext.set(pid, !!(await api(`/api/p/${pid}/epg-status`)).configured); } catch { G.ext.set(pid, false); } }
+        if (G.ext.get(pid) && seq === S.loadSeq) { G.bg = S.items.map((x) => x.s); clearTimeout(G.timer); G.timer = setTimeout(flushEpg, 400); }
+      })();
+    }
+    if (!S.items.length) {
+      const sk = sel.k;
+      gmsg(sk === 'recent' ? 'Nothing watched yet' : sk === 'fav' ? 'No favorites yet' : sk === 'search' ? 'Nothing matches' : 'No channels here', sk === 'recent' ? 'The last five channels you watch will appear here.' : sk === 'fav' ? 'Hold OK on a channel to add a favorite.' : sk === 'search' ? 'Search covers the groups you chose. Try another spelling.' : 'Choose groups in Settings, then Manage groups.');
+    } else gmsg(null);
+    updateToolbar();
+    layoutGuide(); renderGuide();
+  } catch (e) {
+    if (e.status === 401) return location.reload();
+    if (seq === S.loadSeq) gmsg('Couldn’t load channels', e.message);
+  }
+}
+function gmsg(title, body) {
+  const m = $('#gmsg');
+  if (!title) { m.hidden = true; return; }
+  m.replaceChildren(el('strong', '', title), ...(body ? [el('span', '', body)] : []));
+  m.hidden = false;
+  $('#rows').replaceChildren(); $('#timesTrack').replaceChildren();
+}
+function updateToolbar() {
+  const s = S.sel, n = S.total.toLocaleString();
+  let label = '';
+  if (s) {
+    const b = bootOf(s.p), pn = prov(s.p) ? prov(s.p).name : '';
+    label = s.k === 'recent' ? 'Recent' : s.k === 'fav' ? 'Favorites' : s.k === 'all' ? 'All channels' : s.k === 'search' ? `Search “${s.q}”` : (b && b.cats && b.cats.get(s.id) ? b.cats.get(s.id).name : 'Group');
+    $('#chSearch').lastChild.textContent = s.k === 'search' ? 'Search again' : 'Search';
+    label = `${pn}: ${label}  ·  ${n}${S.truncated ? '+' : ''} channels  ·  hold OK for options`;
+  }
+  $('#hl').dataset.base = label;
+  paintHighlight();
+}
+
+/* ---------- the guide grid ---------- */
+const chCache = new Map();
+const G = { bg: [], ext: new Map(), i: 0, top: 0, gt: 0, gx: null, start: 0, end: 0, ppm: 1, rh: 0, vis: 6, visW: 800, cache: new Map(), want: new Set(), timer: null, lastRows: new Map(), retries: 0, retryT: null };
+const xAt = (t) => ((t - G.start) / 60) * G.ppm;
+function layoutGuide() {
+  const rows = $('#rows'), r = rows.getBoundingClientRect();
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  G.rh = 2.9 * rem;
+  G.vis = Math.max(2, Math.floor(r.height / G.rh));
+  const chan = 11.5 * rem;
+  G.visW = Math.max(300, r.width - chan);
+  const now = Date.now() / 1000;
+  const oldStart = G.start;
+  G.start = Math.floor((now - 3600) / 1800) * 1800;
+  G.end = G.start + 24 * 3600;
+  G.ppm = G.visW / 180; // about three hours across
+  if (G.gx != null && oldStart && oldStart !== G.start) G.gx = Math.max(0, G.gx - ((G.start - oldStart) / 60) * G.ppm);
+  if (G.gx == null) G.gx = Math.max(0, xAt(now - 1200));
+  const tt = $('#timesTrack'); tt.replaceChildren();
+  tt.style.width = xAt(G.end) + 'px';
+  for (let t = G.start; t < G.end; t += 1800) {
+    const tk = el('div', 'tk', fmtTime(t));
+    tk.style.left = Math.round(xAt(t)) + 'px'; tk.style.width = Math.round(xAt(t + 1800) - xAt(t)) + 'px';
+    tt.append(tk);
+  }
+}
+function progsOf(it) {
+  const hit = G.cache.get(S.sel.p + ':' + it.s);
+  if (hit && !hit.v.length && !hit.re && Date.now() - hit.at > 30000) { hit.re = true; wantEpg([it.s]); } // an empty answer may only mean the guide was still loading: look again, but keep showing it meanwhile
+  return hit ? hit.v : null;
+}
+function cellAt(progs, t) {
+  if (!progs || !progs.length) return null;
+  let b = null;
+  for (const p of progs) { if (p[0] <= t && t < p[1]) return p; if (p[0] > t) { b = b || p; break; } }
+  return b || progs[progs.length - 1];
+}
+function renderGuide() { // keys can arrive faster than frames: draw once per frame
+  if (G.raf) return;
+  G.raf = requestAnimationFrame(() => { G.raf = 0; if (lsOn()) paintLS(); else renderGuideNow(); });
+}
+function renderGuideNow() {
+  if (S.mode === 'vod') return;
+  if (!S.items.length || !S.sel) return;
+  const rows = $('#rows');
+  if (G.i < G.top) G.top = G.i; else if (G.i >= G.top + G.vis) G.top = G.i - G.vis + 1;
+  G.top = Math.max(0, Math.min(G.top, Math.max(0, S.items.length - G.vis)));
+  const now = Date.now() / 1000;
+  if (zone === 'guide' && S.items[G.i]) { // the highlighted programme must be on screen, even when the nearest one to the cursor is far off (a gap, or the listing ends early, or it arrived late)
+    const fc = cellAt(progsOf(S.items[G.i]), G.gt);
+    if (fc) { const l = xAt(Math.max(fc[0], G.start)), r = xAt(Math.min(fc[1], G.end)); if (Math.min(r, G.gx + G.visW) - Math.max(l, G.gx) < 60) G.gx = Math.max(0, Math.min(l, xAt(G.end) - G.visW)); }
+  }
+  const frag = document.createDocumentFragment();
+  const need = [];
+  for (let n = 0; n < G.vis && G.top + n < S.items.length; n++) {
+    const i = G.top + n, it = S.items[i];
+    const live = S.current && S.current.p === S.sel.p && S.current.s === it.s && (S.starting || S.playing);
+    const row = el('div', 'grow' + (live ? ' live' : ''));
+    row.style.top = n * G.rh + 'px';
+    const fav = !!(bootOf(S.sel.p) && bootOf(S.sel.p).favs && bootOf(S.sel.p).favs.has(it.s)), ck = S.sel.p + ':' + it.s + (fav ? 'f' : '') + (live ? 'l' : '');
+    let ch = chCache.get(ck); // the logo and name are built once; scrolling only moves them
+    if (!ch) {
+      ch = el('div', 'gch'); const lg = el('span', 'lg');
+      if (it.i) { const img = new Image(); img.decoding = 'async'; img.alt = ''; img.src = it.i; img.onerror = () => { img.remove(); lg.textContent = initials(it.n); }; lg.append(img); } else lg.textContent = initials(it.n);
+      ch.append(lg, el('span', 'nm', it.n));
+      if (fav) ch.append(el('span', 'fv', '★'));
+      if (live) ch.append(el('span', 'pl', '▶'));
+      if (chCache.size > 150) chCache.clear();
+      chCache.set(ck, ch);
+    }
+    const slots = el('div', 'slots'), track = el('div', 'track');
+    track.style.transform = `translateX(${-G.gx}px)`;
+    const progs = progsOf(it);
+    const focRow = zone === 'guide' && i === G.i;
+    const cur = focRow ? cellAt(progs, G.gt) : null;
+    if (progs === null) { need.push(it.s); if (focRow) { const c = el('div', 'pg none foc'); c.style.left = Math.round(xAt(G.gt)) + 'px'; c.style.width = Math.round(60 * G.ppm) + 'px'; c.append(el('b', '', 'Loading…')); track.append(c); } }
+    if (progs && progs.length) {
+      const wl = G.start + (G.gx - 200) / G.ppm * 60, wr = G.start + (G.gx + G.visW + 200) / G.ppm * 60; // only what can be seen (plus a margin) is drawn
+      for (const p of progs) {
+        if (p[1] <= G.start || p[0] >= G.end || ((p[1] < wl || p[0] > wr) && !(focRow && cur === p))) continue;
+        const l = Math.round(xAt(Math.max(p[0], G.start))) + 1, w = Math.max(6, Math.round(xAt(Math.min(p[1], G.end))) - l - 1);
+        const c = el('div', 'pg' + (p[0] <= now && now < p[1] ? ' cur' : '') + (focRow && cur === p ? ' foc' : ''));
+        c.style.left = l + 'px'; c.style.width = w + 'px';
+        if (l < G.gx && l + w > G.gx) c.style.paddingLeft = Math.min(G.gx - l, Math.max(0, w - 90)) + 'px';
+        c.append(el('b', '', p[2] || 'Untitled'), el('i', '', `${fmtTime(p[0])} to ${fmtTime(p[1])}`));
+        track.append(c);
+      }
+    } else if (progs) {
+      const c = el('div', 'pg none' + (focRow ? ' foc' : ''));
+      c.style.left = Math.round(xAt(now - 1200)) + 'px'; c.style.width = Math.round(175 * G.ppm) + 'px';
+      c.append(el('b', '', 'No guide data for this channel'));
+      track.append(c);
+    }
+    const nl = el('div', 'nowline'); nl.style.left = Math.round(xAt(now)) + 'px'; track.append(nl);
+    slots.append(track);
+    row.append(slots, ch);
+    frag.append(row);
+  }
+  rows.replaceChildren(frag);
+  { // fetch listings for a page above and below as well, so they are there before the cursor arrives
+    const ahead = [];
+    for (let i = Math.max(0, G.top - G.vis); i < Math.min(S.items.length, G.top + G.vis * 3); i++) {
+      if (i >= G.top && i < G.top + G.vis) continue;
+      if (progsOf(S.items[i]) === null) ahead.push(S.items[i].s);
+    }
+    if (ahead.length) wantEpg(need.concat(ahead).filter((x, k, a) => a.indexOf(x) === k)), need.length = 0;
+  }
+  $('#timesTrack').style.transform = `translateX(${-G.gx}px)`;
+  if (need.length) wantEpg(need);
+  paintHighlight();
+}
+function wantEpg(ids) {
+  for (const id of ids) G.want.add(id);
+  clearTimeout(G.timer);
+  G.timer = setTimeout(flushEpg, 40);
+}
+async function flushEpg() {
+  const sel = S.sel; if (!sel) return;
+  const pid = sel.p;
+  let ids = [...G.want].slice(0, 24);
+  ids.forEach((id) => G.want.delete(id));
+  if (!ids.length) { // nothing urgent: quietly fetch the rest of this list so it is already there when you scroll
+    while (G.bg.length && ids.length < 30) { const id = G.bg.shift(); if (progsOf({ s: id }) === null) ids.push(id); }
+    if (!ids.length) return;
+  }
+  try {
+    const out = await api(`/api/p/${pid}/epg-grid?ids=${ids.join(',')}`);
+    for (const id of ids) G.cache.set(pid + ':' + id, { at: Date.now(), v: out[id] || [] });
+    if (S.sel && S.sel.p === pid && ids.some((id) => { const k = S.items.findIndex((x) => x.s === id); return k >= G.top - 1 && k <= G.top + G.vis; })) renderGuide();
+  } catch (e) { if (e.status === 401) return location.reload(); for (const id of ids) G.cache.set(pid + ':' + id, { at: Date.now(), v: [] }); }
+  if (G.want.size || G.bg.length) G.timer = setTimeout(flushEpg, G.want.size ? 100 : 250);
+  // an empty answer can just mean the source's guide is still loading: look again in a while, a few times
+  if (ids.some((id) => { const h = G.cache.get(pid + ':' + id); return h && !h.v.length; }) && G.retries < 8 && !G.retryT) {
+    G.retries++;
+    G.retryT = setTimeout(() => {
+      G.retryT = null;
+      if (!S.sel || S.sel.p !== pid) return;
+      for (const [k, h] of G.cache) if (k.startsWith(pid + ':') && !h.v.length) { h.at = 0; h.re = false; } // looked at again the next time they are on screen
+      renderGuide();
+    }, 12000);
+  }
+}
+function paintHighlight() {
+  const hl = $('#hl'), base = hl.dataset.base || '';
+  if (S.mode === 'vod') { const v = V.items[V.i]; hl.textContent = zone === 'guide' && v ? v.n + (v.y ? `  (${v.y})` : '') + (V.sel && V.sel.k === 'search' && v.pid ? `   ${v.k === 'show' ? 'Show' : 'Movie'} · ${(prov(v.pid) || {}).name || ''}` : '') : base; return; }
+  if (lsOn()) { const t = LS.flat[LS.i]; hl.textContent = zone === 'guide' && t ? `${t.c.n}   ${t.pn}` : base; return; }
+  const it = S.items[G.i];
+  if (zone === 'guide' && it && S.sel) {
+    const p = cellAt(progsOf(it), G.gt);
+    hl.replaceChildren(el('b', '', it.n), document.createTextNode(p ? `   ${p[2] || 'Untitled'}   ${fmtTime(p[0])} to ${fmtTime(p[1])}` : '   No guide data'));
+  } else hl.textContent = base;
+}
+function showX(p) { // bring the highlighted programme into view after a sideways move
+  const l = xAt(Math.max(p[0], G.start)), r = xAt(Math.min(p[1], G.end));
+  if (l < G.gx) G.gx = l; else if (r > G.gx + G.visW) G.gx = Math.max(l, r - G.visW);
+  G.gx = Math.max(0, G.gx);
+}
+let wrapHold = 0, lastGuideMove = 0;
+function guideMove(k) {
+  const it = S.items[G.i];
+  if (S.items.length > 1 && ((k === 'up' && G.i === 0) || (k === 'down' && G.i === S.items.length - 1))) { // at an end: a held key stops there for a moment, so the jump to the other end is noticed; a single press wraps at once
+    const now = Date.now();
+    if (now < wrapHold) return;
+    if (now - lastGuideMove < 250) { wrapHold = now + 600; return; }
+  }
+  lastGuideMove = Date.now();
+  if (k === 'up') { G.i = G.i === 0 ? S.items.length - 1 : G.i - 1; }
+  else if (k === 'down') { G.i = G.i < S.items.length - 1 ? G.i + 1 : 0; }
+  else if (k === 'pgup') G.i = Math.max(0, G.i - G.vis);
+  else if (k === 'pgdn') G.i = Math.min(S.items.length - 1, G.i + G.vis);
+  else if (k === 'left' || k === 'right') {
+    const progs = it && progsOf(it);
+    const cur = cellAt(progs, G.gt);
+    if (!cur) { if (k === 'left') setZone('side'); return; }
+    if (k === 'right') {
+      const nx = progs.find((p) => p[0] >= cur[1] && p[0] < G.end);
+      if (nx) { G.gt = nx[0]; showX(nx); }
+    } else {
+      let pv = null;
+      const nowS = Date.now() / 1000;
+      for (const p of progs) { if (p[1] <= cur[0] && p[1] > G.start && p[1] > nowS) pv = p; } // what has already finished stays on screen but can't be selected
+      if (!pv) return setZone('side'); // nothing earlier can be selected, so the guide stays where it is
+      G.gt = pv[0]; showX(pv);
+    }
+  }
+  const c = cellAt(progsOf(S.items[G.i]), G.gt);
+  if (c && (k === 'up' || k === 'down' || k === 'pgup' || k === 'pgdn')) { // keep roughly the same time of day under the cursor
+    const l = xAt(Math.max(c[0], G.start)), r = xAt(Math.min(c[1], G.end));
+    if (Math.min(r, G.gx + G.visW) - Math.max(l, G.gx) < Math.min(120, (r - l) * 0.6)) G.gx = Math.max(0, l); // only when most of it would be off screen; a short cell that is fully visible stays put
+  }
+  renderGuide();
+}
+function guideOk() {
+  const it = S.items[G.i];
+  if (!it) return;
+  if (S.needTap && S.current && S.current.s === it.s) { const p = video.play(); if (p && p.catch) p.catch(needTap); return; }
+  const isCur = S.current && S.current.p === S.sel.p && S.current.s === it.s;
+  if (isCur && (S.playing || S.starting)) return setFullscreen(true);
+  const p = cellAt(progsOf(it), G.gt), now = Date.now() / 1000;
+  if (p && p[0] > now + 30 && G.gt >= p[0] && !isCur) { toast(`${p[2] || 'Untitled'}: ${fmtTime(p[0])} to ${fmtTime(p[1])}. Press OK on a programme that’s on now to watch.`, 4200); return; }
+  S.pid = S.sel.p;
+  play(it);
+}
+const initialOf = (n) => { const c = String(n).replace(/^[^A-Za-z0-9]+/, '').charAt(0).toUpperCase(); return /[0-9]/.test(c) ? '#' : c; };
+
+/* ---------- zones ---------- */
+function setZone(z) {
+  if (z === 'side' && zone !== 'side' && zone !== 'set') { const j = T.nodes.findIndex(isSel); if (j >= 0) T.i = j; } // coming back to the list lands on what is showing
+  zone = z;
+  $('#stage').classList.toggle('foc', z === 'prev');
+  $('#chSearch').classList.toggle('foc', z === 'tool' && S.mode !== 'vod');
+  $('#vSort').classList.toggle('foc', z === 'tool' && S.mode === 'vod');
+  paintTreeFocus(); // the sidebar stays on screen; only full screen hides it
+  if (S.mode === 'vod') { paintWall(); paintHighlight(); } else if (lsOn()) { paintLS(); paintHighlight(); } else if (S.items.length && S.sel) renderGuide(); else paintHighlight();
+}
+
+/* ---------- Search ---------- */
+/* Search in Live TV: channels from every provider, listed by provider; picking one opens that provider's guide on it */
+let liveQ = '';
+const LS = { on: false, q: '', secs: [], flat: [], i: 0, top: 0, cols: 4, cards: new Map(), ent: [] };
+const lsOn = () => S.mode === 'tv' && LS.on;
+function lsOff() {
+  if (!LS.on) return;
+  LS.on = false; LS.cards.clear();
+  const gd = $('#guide'); gd.classList.remove('ls'); if (S.mode !== 'vod') $('#wall').hidden = true;
+  if (S.items.length) { layoutGuide(); renderGuide(); }
+}
+async function doSearch() {
+  const q = await osk({ title: 'Search channels', value: liveQ, okLabel: 'Search', hint: 'Searches the groups you chose, in every provider.' });
+  if (!q || !q.trim()) return;
+  liveQ = q.trim();
+  toast('Searching…', 12000);
+  const enc = encodeURIComponent(liveQ);
+  const res = await Promise.all(S.providers.map(async (p) => {
+    try { const [j] = await Promise.all([api(`/api/p/${p.id}/channels?q=${enc}`), ensureBoot(p.id)]); return { p: p.id, pn: p.name, items: j.items.slice(0, 40), total: j.total }; } catch { return { p: p.id, pn: p.name, items: [], total: 0 }; }
+  }));
+  $('#toast').hidden = true;
+  const secs = res.filter((r) => r.items.length);
+  if (!secs.length) return toast(`No channel matches “${liveQ}”`);
+  LS.on = true; LS.q = liveQ; LS.secs = secs; LS.i = 0; LS.top = 0; LS.cards.clear();
+  LS.flat = []; for (const r of secs) for (const c of r.items) LS.flat.push({ p: r.p, pn: r.pn, c });
+  $('#guide').classList.add('ls'); gmsg(null); $('#wall').hidden = false;
+  $('#hl').dataset.base = `Search “${liveQ}”  ·  ${LS.flat.length} channels  ·  OK previews, hold OK for favorites`;
+  renderTree(); setZone('guide');
+}
+/* the results: square tiles in rows, one block per provider, so it is always clear whose channel you are on */
+function lsTile(t) {
+  const key = t.p + '|' + t.c.s; let d = LS.cards.get(key); if (d) return d;
+  d = el('div', 'lt'); const lg = el('span', 'lgs');
+  if (t.c.i) { const im = new Image(); im.alt = ''; im.decoding = 'async'; im.onerror = () => { im.remove(); lg.textContent = initials(t.c.n); }; im.src = t.c.i; lg.append(im); } else lg.textContent = initials(t.c.n);
+  d.append(lg, el('span', 'ln', t.c.n), el('span', 'lb'), el('span', 'lnp'));
+  LS.cards.set(key, d); return d;
+}
+function lsBuild() {
+  const w = $('#wall'), rem = parseFloat(getComputedStyle(document.documentElement).fontSize), W = w.clientWidth;
+  const cols = Math.max(3, Math.floor((W - 2 * rem + 0.4 * rem) / (7.4 * rem))); LS.cols = cols;
+  const ent = [], lines = []; let n = 0;
+  for (const r of LS.secs) {
+    ent.push({ h: LS.secs.length > 1 ? r.pn : `${r.pn}`, ht: 1.7 });
+    for (let a = 0; a < r.items.length; a += cols) { const b = Math.min(r.items.length, a + cols); const ln = { from: n, to: n + (b - a), ei: ent.length }; ent.push({ ln, ht: 6.2 }); lines.push(ln); n += b - a; }
+    if (r.total > r.items.length) ent.push({ note: `${(r.total - r.items.length).toLocaleString()} more in ${r.pn}. Try a longer search.`, ht: 1.4 });
+  }
+  LS.ent = ent; LS.lines = lines;
+}
+function paintLS() {
+  const w = $('#wall'); if (w.hidden) return;
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), H = w.clientHeight / rem - 0.6, gap = 0.5;
+  lsBuild();
+  w.style.display = 'grid'; w.style.gridTemplateColumns = `repeat(${LS.cols}, minmax(0, 1fr))`;
+  const cur = LS.lines.find((l) => LS.i >= l.from && LS.i < l.to), ci = cur ? cur.ei : 0;
+  const span = (a, b) => { let h = 0; for (let k = a; k <= b; k++) h += LS.ent[k].ht + gap; return h; };
+  if (LS.top > ci) LS.top = ci;
+  while (LS.top < ci && span(LS.top, ci) > H) LS.top++;
+  if (cur && LS.ent[ci - 1] && LS.ent[ci - 1].h && LS.top === ci) LS.top = ci - 1;
+  const frag = document.createDocumentFragment(); let used = 0;
+  for (let k = LS.top; k < LS.ent.length; k++) {
+    const e = LS.ent[k]; if (k > LS.top && used + e.ht > H) break; used += e.ht + gap;
+    if (e.h) frag.append(el('div', 'lsh', e.h));
+    else if (e.note) frag.append(el('div', 'lsn', e.note));
+    else for (let i = e.ln.from; i < e.ln.to; i++) {
+      const t = LS.flat[i], d = lsTile(t), b = bootOf(t.p), isCur = S.current && S.current.p === t.p && S.current.s === t.c.s;
+      d.classList.toggle('foc', zone === 'guide' && i === LS.i);
+      d.children[2].textContent = b && b.favs && b.favs.has(t.c.s) ? '★' : '';
+      d.children[3].textContent = isCur && (S.playing || S.starting) ? '▶' : '';
+      frag.append(d);
+    }
+  }
+  w.replaceChildren(frag);
+}
+function lsMove(k) {
+  const L = LS.lines, li = L.findIndex((l) => LS.i >= l.from && LS.i < l.to), l = L[li], col = LS.i - l.from, jump = (d) => { const t = L[Math.max(0, Math.min(L.length - 1, li + d))]; LS.i = Math.min(t.to - 1, t.from + col); };
+  if (k === 'left') { if (!col) return setZone('side'); LS.i--; }
+  else if (k === 'right') { if (LS.i + 1 < l.to) LS.i++; }
+  else if (k === 'up') { if (li === 0) { const t = L[L.length - 1]; LS.i = Math.min(t.to - 1, t.from + col); } else jump(-1); }
+  else if (k === 'down') { if (li < L.length - 1) jump(1); else LS.i = Math.min(L[0].to - 1, col); }
+  else if (k === 'pgup') jump(-3);
+  else if (k === 'pgdn') jump(3);
+  paintLS(); paintHighlight();
+}
+function lsOk() { // OK previews it here; OK again on the one playing goes full screen
+  const t = LS.flat[LS.i]; if (!t) return;
+  const isCur = S.current && S.current.p === t.p && S.current.s === t.c.s;
+  if (S.needTap && isCur) { const p = video.play(); if (p && p.catch) p.catch(needTap); return; }
+  if (isCur && (S.playing || S.starting)) return setFullscreen(true);
+  S.pid = t.p; play(t.c); paintLS();
+}
+async function lsMenu() {
+  const t = LS.flat[LS.i]; if (!t) return;
+  await ensureBoot(t.p);
+  const b = bootOf(t.p), m = listMenu(`${t.c.n}  (${t.pn})`);
+  m.row(b && b.favs && b.favs.has(t.c.s) ? `Remove from ${t.pn} favorites` : `Add to ${t.pn} favorites`, async () => { await toggleFav(t.p, t.c.s); paintLS(); });
+  m.row('Open in the guide', async () => {
+    const q = LS.q, p = t.p, s = t.c.s;
+    await select({ p, k: 'search', q });
+    const j = S.items.findIndex((x) => x.s === s);
+    if (j >= 0) { G.i = j; G.top = Math.max(0, j - 1); renderGuide(); }
+    setZone('guide');
+  });
+  m.finish();
+}
+
+/* ---------- Settings ---------- */
+const PAUSE_OPTS = [[0, 'Never'], [15, 'After 15 seconds'], [45, 'After 45 seconds'], [120, 'After 2 minutes'], [300, 'After 5 minutes']];
+const HIDDEN_OPTS = [[0, 'Never'], [60, 'After 1 minute'], [120, 'After 2 minutes'], [300, 'After 5 minutes'], [900, 'After 15 minutes']];
+function openSettings() {
+  const m = modal(); m.box.id = 'setBox';
+  m.box.append(el('h2', '', 'Settings'));
+  const list = el('div'); list.id = 'setList'; m.box.append(list);
+  const row = (label, getV, cycle) => {
+    const r = el('div', 'mb srow'); r.append(el('span', '', label)); const v = el('span', 'v'); r.append(v);
+    const paint = () => { v.textContent = getV(); };
+    paint(); r._cycle = (d) => { cycle(d); paint(); }; r._act = () => r._cycle(1);
+    list.append(r); return r;
+  };
+  const opt = (opts, key) => (d) => { let i = opts.findIndex((o) => o[0] === settings[key]); if (i < 0) i = 0; settings[key] = opts[(i + d + opts.length) % opts.length][0]; saveSettings(); };
+  const optLabel = (opts, key) => () => (opts.find((o) => o[0] === settings[key]) || opts[0])[1];
+  const first = row('Captions', () => (settings.cc ? 'On' : 'Off'), () => { settings.cc = settings.cc ? 0 : 1; saveSettings(); drawCC(); });
+  row('Caption size', () => CC_SIZES[settings.ccSize][0], (d) => { settings.ccSize = (settings.ccSize + d + CC_SIZES.length) % CC_SIZES.length; saveSettings(); sizeCaptions(); });
+  row('Stop the stream when paused', optLabel(PAUSE_OPTS, 'pauseStop'), opt(PAUSE_OPTS, 'pauseStop'));
+  row('Text and layout size', () => (UI_SIZES.find((x) => x[0] === settings.uiSize) || UI_SIZES[1])[1], (d) => {
+    const i = Math.max(0, UI_SIZES.findIndex((x) => x[0] === settings.uiSize));
+    settings.uiSize = UI_SIZES[(i + d + UI_SIZES.length) % UI_SIZES.length][0]; saveSettings(); applyUiSize();
+    if (S.items.length && S.sel) { const g = G.gx; layoutGuide(); G.gx = g; renderGuide(); }
+    sizeCaptions(); if (sizeFoot) sizeFoot();
+  });
+  if (S.me && S.me.rewind > 0) { // how far back a live channel can be wound: this profile's choice, never more than the server allows
+    let ch = [15, 30, 60];
+    const rrow = row('Rewind live TV', () => (S.me.rewind || 0) + ' min', (d) => {
+      const i = Math.max(0, ch.indexOf(S.me.rewind)), n = ch[(i + d + ch.length) % ch.length];
+      S.me.rewind = n; send('/api/rewind', { minutes: n }, 'PUT').then((j) => { S.me.rewind = j.minutes; }).catch(() => {});
+    });
+    api('/api/rewind').then((j) => { ch = j.choices.length ? j.choices : ch; }).catch(() => {});
+  }
+  const gp = S.sel ? S.sel.p : S.pid || (S.providers[0] && S.providers[0].id);
+  if (gp) list.append(Object.assign(btn(`Manage groups${prov(gp) ? ' (' + prov(gp).name + ')' : ''}`, () => { m.close(); openGroups(gp); }), { className: 'mb srow' }));
+  if (gp) list.append(Object.assign(btn(`Refresh channel list${prov(gp) ? ' (' + prov(gp).name + ')' : ''}`, async () => { // pick up groups added at the provider since the list was last fetched
+    m.close(); toast('Refreshing the channel list…', 8000);
+    try { await send(`/api/p/${gp}/refresh`, {}, 'POST'); S.boots.delete(gp); await ensureBoot(gp); if (S.sel && S.sel.p === gp && S.mode === 'tv') await loadItems(); toast('Channel list updated'); } catch (e) { toast('Couldn’t refresh: ' + e.message); }
+  }), { className: 'mb srow' }));
+  const adultRow = Object.assign(btn('', () => {}), { className: 'mb srow' }); adultRow.hidden = true; // shown only when an admin has turned the content lock on
+  const paintAdult = () => { adultRow.hidden = !S.adult.on; adultRow.replaceChildren(el('span', '', 'Content lock'), el('span', 'v', S.adult.open ? 'Unlocked. OK to lock' : 'Locked. OK to unlock')); };
+  adultRow._act = async () => {
+    if (S.adult.open) { try { await send('/api/adult/lock', {}, 'POST'); S.adult.open = false; m.close(); toast('Blocked channels locked'); await adultRefresh(true); } catch (e) { toast(e.message); } }
+    else { m.close(); if (await tvNeedPin()) { toast('Blocked channels unlocked'); await adultRefresh(true); } }
+  };
+  list.append(adultRow); paintAdult();
+  api('/api/adult/status').then((j) => { S.adult = Object.assign(S.adult, { on: j.on, open: j.open, hasPin: j.hasPin }); paintAdult(); }).catch(() => {});
+  if (/ZibbitApp\//.test(navigator.userAgent)) {
+    list.append(Object.assign(btn('Change server', () => { location.href = 'zibbit://servers'; }), { className: 'mb srow' }));
+    list.append(Object.assign(btn('Check for app update', () => { m.close(); location.href = 'zibbit://update'; }), { className: 'mb srow' }));
+  }
+  const stopAll = btn('Stop all streams now', async () => {
+    stopPlayback('Stopped', 'Everything the server was pulling has ended.');
+    try { const r = await send('/api/stop', { all: true }, 'POST'); toast(r.stopped ? 'All streams stopped' : 'Nothing was streaming'); } catch { toast('Couldn’t reach the server'); }
+    m.close();
+  }, 'srow');
+  list.append(stopAll);
+  const so = btn(S.me.name ? `Sign out ${S.me.name}` : 'Sign out', async () => {
+    stopPlayback('Signed out', '');
+    if (S.me.name) profiles.drop(S.me.name);
+    try { await send('/api/logout', {}, 'POST'); } catch { /* signing out anyway */ }
+    picked.set(false); location.reload();
+  }, 'srow');
+  if (S.me.tv) list.append(Object.assign(btn('Switch profile', () => { m.close(); showProfiles(true); }), { className: 'mb srow' }));
+  list.append(so);
+  const foot = el('div', 'note'); m.box.append(foot);
+  const paintFoot = () => { foot.textContent = `Zibbit ${S.me.version || ''}`; };
+  paintFoot(); sizeFoot = paintFoot;
+  m.focus(first);
+}
+
+/* ---------- Manage groups ---------- */
+async function openGroups(pid) {
+  const b = await ensureBoot(pid);
+  if (!b || b.err) return toast('Couldn’t load the groups');
+  const m = modal(); m.box.append(el('h2', '', `Groups from ${prov(pid).name}`));
+  m.box.append(el('p', '', 'Tick the groups you want. Every channel in a ticked group appears in All channels.'));
+  const sel = new Set(b.groups);
+  const orig = new Set(b.groups);
+  const top = el('div', 'mrow');
+  const save = btn('Save', async () => {
+    const kept = b.groups.filter((g) => sel.has(g));
+    const order = kept.concat(b.boot.categories.map((c) => c.id).filter((id) => sel.has(id) && !kept.includes(id)));
+    try {
+      const r = await send(`/api/p/${pid}/groups`, { groups: order });
+      b.groups = r.groups; m.close(); toast(`Saved. ${r.channels.toLocaleString()} channels in your lineup.`);
+      renderTree();
+      if (S.sel && S.sel.p === pid && S.sel.k === 'grp' && !r.groups.includes(S.sel.id)) await select({ p: pid, k: 'all' });
+      else if (S.sel && S.sel.p === pid) await loadItems();
+    } catch (e) { toast('Couldn’t save: ' + e.message); }
+  }, 'primary');
+  const filt = btn('Filter…', async () => {
+    const q = await osk({ title: 'Filter groups', value: filt._q || '', okLabel: 'Filter' });
+    if (q == null) return;
+    filt._q = q.trim().toLowerCase(); filt.textContent = filt._q ? `Filter: ${filt._q}` : 'Filter…';
+    for (const r of list.children) r.hidden = !!filt._q && !r._name.includes(filt._q);
+    const f = [...list.children].find((r) => !r.hidden); if (f) m.focus(f);
+  });
+  top.append(save, filt, btn('Cancel', () => m.close()));
+  m.box.append(top);
+  const list = el('div'); list.id = 'catList';
+  const frag = document.createDocumentFragment();
+  for (const c of b.boot.categories) {
+    const r = el('div', 'mb crow' + (sel.has(c.id) ? ' on' : ''));
+    r._name = (c.name || '').toLowerCase();
+    const bx = el('span', 'bx', sel.has(c.id) ? '✓' : '');
+    r.append(bx, el('span', 'nm', c.name || '(unnamed group)'), el('span', 'ct', c.count.toLocaleString()));
+    r._act = () => { if (sel.has(c.id)) sel.delete(c.id); else sel.add(c.id); r.classList.toggle('on', sel.has(c.id)); bx.textContent = sel.has(c.id) ? '✓' : ''; };
+    frag.append(r);
+  }
+  list.append(frag);
+  m.box.append(list, el('div', 'note', 'OK ticks or unticks. Move up to the top for Save.'));
+  m.focus(save);
+  void orig;
+}
+
+
+/* ---- reorder by carrying: pick (optional), then Up/Down move, Left = top, Right = bottom, OK drops, Back cancels ---- */
+let CARRY = null;
+function carryPaint(pre) {
+  const t = $('#toast'); t.hidden = false; clearTimeout(toast.t);
+  t.textContent = (pre ? pre + ' ' : '') + (CARRY.picking ? 'Reordering: Up and Down move along the list, Left jumps to the top, Right to the bottom. OK picks one up. Hold OK or Back when you are done.' : 'Moving: Up and Down move it, Left sends it to the top, Right to the bottom. OK drops it, Back puts it back. Hold OK to drop it and finish.');
+}
+function startCarry(c) {
+  CARRY = Object.assign({}, c);
+  CARRY.orig = c.kind === 'chan' ? S.items.map((x) => x.s) : bootOf(c.pid).groups.slice();
+  carryPaint();
+}
+function carryFinish() { // hold OK: drop whatever is held and leave reordering
+  const c = CARRY; if (!c) return;
+  if (!c.picking) { if (c.kind === 'chan') saveChannelOrder(); else saveGroupOrder(c.pid); carryEnd('Order saved'); } else carryEnd('Reordering finished');
+}
+function carryEnd(msg) { CARRY = null; const t = $('#toast'); t.hidden = true; if (msg) toast(msg); }
+function carryKey(k) {
+  const c = CARRY;
+  if (c.kind === 'chan') {
+    const n = S.items.length;
+    if (c.picking) {
+      if (k === 'up') G.i = G.i === 0 ? n - 1 : G.i - 1; else if (k === 'down') G.i = G.i === n - 1 ? 0 : G.i + 1;
+      else if (k === 'left') G.i = 0; else if (k === 'right') G.i = n - 1;
+      else if (k === 'pgup') G.i = Math.max(0, G.i - G.vis); else if (k === 'pgdn') G.i = Math.min(n - 1, G.i + G.vis);
+      else if (k === 'ok') { c.picking = false; carryPaint(); } else if (k === 'back') carryEnd('Reordering finished');
+      renderGuide(); return true;
+    }
+    if (k === 'back') { const by = new Map(S.items.map((x) => [x.s, x])); S.items = c.orig.map((id) => by.get(id)).filter(Boolean); c.picking = true; carryPaint(); renderGuide(); return true; }
+    if (k === 'ok') { saveChannelOrder(); c.orig = S.items.map((x) => x.s); c.picking = true; carryPaint('Order saved.'); return true; }
+    const i = G.i, j = k === 'up' ? i - 1 : k === 'down' ? i + 1 : k === 'left' ? 0 : k === 'right' ? n - 1 : i;
+    if (j !== i && j >= 0 && j < n) { const [x] = S.items.splice(i, 1); S.items.splice(j, 0, x); G.i = j; renderGuide(); }
+    return true;
+  }
+  const b = bootOf(c.pid), gl = () => T.nodes.map((x, i) => [x, i]).filter(([x]) => x.t === 'grp' && x.p === c.pid);
+  if (c.picking) {
+    const l = gl(), at = l.findIndex(([, i]) => i === T.i);
+    if (k === 'up' && at > 0) { T.i = l[at - 1][1]; paintTreeFocus(); } else if (k === 'down' && at < l.length - 1) { T.i = l[at + 1][1]; paintTreeFocus(); }
+    else if (k === 'left' && l.length) { T.i = l[0][1]; paintTreeFocus(); } else if (k === 'right' && l.length) { T.i = l[l.length - 1][1]; paintTreeFocus(); }
+    else if (k === 'ok' && at >= 0) { c.id = l[at][0].id; c.picking = false; c.orig = b.groups.slice(); carryPaint(); } else if (k === 'back') carryEnd('Reordering finished');
+    return true;
+  }
+  if (k === 'back') { b.groups = c.orig.slice(); c.picking = true; carryPaint(); renderTree(); T.i = T.nodes.findIndex((x) => x.t === 'grp' && x.p === c.pid && x.id === c.id); paintTreeFocus(); return true; }
+  if (k === 'ok') { saveGroupOrder(c.pid); c.orig = b.groups.slice(); c.picking = true; carryPaint('Order saved.'); return true; }
+  const i = b.groups.indexOf(c.id), n = b.groups.length, j = k === 'up' ? i - 1 : k === 'down' ? i + 1 : k === 'left' ? 0 : k === 'right' ? n - 1 : i;
+  if (i >= 0 && j !== i && j >= 0 && j < n) { b.groups.splice(i, 1); b.groups.splice(j, 0, c.id); renderTree(); T.i = T.nodes.findIndex((x) => x.t === 'grp' && x.p === c.pid && x.id === c.id); paintTreeFocus(); }
+  return true;
+}
+
+/* ---------- long-press menus ---------- */
+let chanSave = null;
+function saveChannelOrder() {
+  clearTimeout(chanSave && chanSave.t);
+  chanSave = { t: setTimeout(flushChannelOrder, 500) };
+}
+async function flushChannelOrder() {
+  if (!chanSave) return;
+  clearTimeout(chanSave.t); chanSave = null;
+  const s = S.sel; if (!s) return;
+  const ids = S.items.map((x) => x.s);
+  try { await send(`/api/p/${s.p}/customize`, s.k === 'fav' ? { op: 'favorites', ids } : { op: 'order', cat: s.id, ids }, 'POST'); }
+  catch (e) { toast('Couldn’t save the order: ' + e.message); }
+}
+let grpSave = null;
+function saveGroupOrder(pid) {
+  clearTimeout(grpSave && grpSave.t);
+  grpSave = { pid, t: setTimeout(flushGroupOrder, 500) };
+}
+async function flushGroupOrder() {
+  if (!grpSave) return;
+  const { pid, t } = grpSave; clearTimeout(t); grpSave = null;
+  const b = bootOf(pid); if (!b || b.err) return;
+  try { const r = await send(`/api/p/${pid}/groups`, { groups: b.groups }); b.groups = r.groups; } catch (e) { return toast('Couldn’t save the order: ' + e.message); }
+  if (S.sel && S.sel.p === pid && S.sel.k === 'all') loadItems(); // All channels follows the group order
+}
+const listMenu = (title) => { // a plain list pop-up; rows are added with row()
+  const m = modal(); m.box.append(el('h2', '', title));
+  const list = el('div'); list.id = 'setList'; m.box.append(list);
+  m.row = (label, act, keepOpen) => { const r = btn(label, async () => { if (!keepOpen) m.close(); await act(); }, 'srow'); r.style.justifyContent = 'flex-start'; list.append(r); if (!m.first) m.first = r; return r; };
+  m.finish = () => { m.box.append(el('div', 'note', 'Back closes this menu.')); m.focus(m.first); };
+  return m;
+};
+async function toggleFav(pid, sid) { // returns the new state, or null if it couldn't be saved
+  const b = bootOf(pid); if (!b) return null;
+  const on = !b.favs.has(sid);
+  try { await send(`/api/p/${pid}/favorite`, { s: sid, on }, 'POST'); } catch { toast('Couldn’t save that favorite'); return null; }
+  if (on) b.favs.add(sid); else b.favs.delete(sid);
+  toast(on ? 'Added to favorites' : 'Removed from favorites');
+  renderTree(); renderGuide();
+  return on;
+}
+async function playRecent(r) { // jump to a channel from history: show the list it belongs to, so Up / Down and Back make sense
+  S.pid = r.p;
+  const b = bootOf(r.p);
+  let sel = null;
+  if (b && b.favs.has(r.s)) sel = { p: r.p, k: 'fav' };
+  else if (r.l && r.l.p === r.p && r.l.k !== 'fav') sel = r.l;
+  if (sel) {
+    const same = S.sel && S.sel.p === sel.p && S.sel.k === sel.k && S.sel.id === sel.id;
+    if (!same || !S.items.some((x) => x.s === r.s)) await select(sel);
+    if (!S.items.some((x) => x.s === r.s) && sel.k !== 'all') await select({ p: r.p, k: 'all' });
+    const k = S.items.findIndex((x) => x.s === r.s);
+    if (k >= 0) { G.i = k; S.nextSel = S.sel; }
+  }
+  play({ s: r.s, n: r.n, i: r.i });
+}
+function channelMenu() {
+  const it = S.items[G.i]; if (!it || !S.sel) return;
+  const pid = S.sel.p, b = bootOf(pid);
+  const m = listMenu(it.n);
+  m.row(b && b.favs.has(it.s) ? 'Remove from favorites' : 'Add to favorites', async () => {
+    const on = await toggleFav(pid, it.s);
+    if (on === false && S.sel.k === 'fav') { S.items = S.items.filter((x) => x.s !== it.s); S.total--; G.i = Math.min(G.i, Math.max(0, S.items.length - 1)); if (!S.items.length) gmsg('No favorites yet', 'Hold OK on a channel to add one.'); updateToolbar(); renderGuide(); }
+  });
+  if (S.sel.k === 'fav' || S.sel.k === 'grp') {
+    m.row('Reorder', () => startCarry({ kind: 'chan' }));
+    if (S.sel.k === 'grp') m.row('Hide this channel', async () => {
+      try { await send(`/api/p/${pid}/customize`, { op: 'hide', ids: [it.s] }, 'POST'); } catch { return toast('Couldn’t save that change'); }
+      S.items = S.items.filter((x) => x.s !== it.s); S.total--;
+      G.i = Math.min(G.i, Math.max(0, S.items.length - 1));
+      if (!S.items.length) gmsg('This group is empty', 'Every channel in it is hidden.');
+      updateToolbar(); renderGuide(); toast('Hidden. Bring it back from the phone or computer page.');
+    });
+  }
+  m.finish();
+}
+function groupMenu(n) {
+  const b = bootOf(n.p); if (!b || b.err) return;
+  const c = b.cats.get(n.id);
+  const m = listMenu(c ? c.name : 'Group');
+  m.row('Reorder channels in this group', async () => { await select({ p: n.p, k: 'grp', id: n.id }); setZone('guide'); startCarry({ kind: 'chan', picking: true }); });
+  m.row('Move this group', () => startCarry({ kind: 'grp', pid: n.p, id: n.id }));
+  m.row('Remove from my groups', () => {
+    const i = b.groups.indexOf(n.id); if (i < 0) return;
+    b.groups.splice(i, 1);
+    if (S.sel && S.sel.p === n.p && S.sel.k === 'grp' && S.sel.id === n.id) select({ p: n.p, k: 'all' }); else renderTree();
+    saveGroupOrder(n.p); toast('Removed. Manage groups brings it back.');
+  });
+  m.finish();
+}
+function providerMenu(n) {
+  const m = listMenu(prov(n.p) ? prov(n.p).name : 'Provider');
+  m.row('Manage groups', () => openGroups(n.p));
+  m.row('Reorder groups', () => {
+    const first = T.nodes.findIndex((x) => x.t === 'grp' && x.p === n.p);
+    if (first < 0) return toast('No groups to reorder yet');
+    T.i = first; paintTreeFocus(); startCarry({ kind: 'grp', pid: n.p, picking: true });
+  });
+  m.finish();
+}
+function favNode(n) {
+  const m = listMenu('Favorites');
+  m.row('Reorder favorites', async () => { await select({ p: n.p, k: 'fav' }); if (!S.items.length) return; setZone('guide'); startCarry({ kind: 'chan', picking: true }); });
+  m.finish();
+}
+/* while watching full screen: square tiles along the bottom */
+function tiles(items, flat) {
+  const m = modal('fsb'); m.root.classList.add('fsroot'); if (flat) m.box.classList.add('flat');
+  let first = null;
+  for (const t of items) {
+    const b = btn('', t.act, 'sq');
+    if (t.logo !== undefined) { const lg = el('span', 'lgs'); if (t.logo) { const im = new Image(); im.alt = ''; im.src = t.logo; im.onerror = () => { im.remove(); lg.textContent = initials(t.label); }; lg.append(im); } else lg.textContent = initials(t.label); b.append(lg); }
+    else b.append(el('span', 'ic', t.icon));
+    b.append(el('span', '', t.label)); if (t.sub) b.append(el('small', '', t.sub));
+    m.box.append(b); if (!first) first = b;
+  }
+  m.focus(first); return m;
+}
+async function fsMenu() { // one flat row: favorite, the last few channels, clear history, close
+  const c = S.current;
+  const b = c && bootOf(c.p), fav = !!(b && b.favs.has(c.s));
+  let m;
+  const list = [];
+  if (S.rw && behindLive() > 5) list.push({ icon: '⏭', label: 'Go live', act: () => { m.close(); goLive(); } });
+  for (const t of recTiles(() => m.close())) list.push(t);
+  if (c && b) list.push({ icon: fav ? '★' : '☆', label: fav ? 'Remove favorite' : 'Add favorite', act: async () => { m.close(); await toggleFav(c.p, c.s); } });
+  const rec = await recentVisible();
+  for (const r of rec) {
+    if (S.current && S.current.p === r.p && S.current.s === r.s) continue; // what is playing now is not a place to jump to
+    const pv = prov(r.p);
+    list.push({ logo: r.i || '', label: r.n, sub: S.providers.length > 1 && pv ? pv.name : '', act: () => { m.close(); playRecent(r); pulseInfo(); } });
+  }
+  if (rec.length) list.push({ icon: '🗑', label: 'Clear history', act: () => { m.close(); recent.clear(); toast('History cleared'); } });
+  m = tiles(list, true); // Back closes it
+  if (c) { const meta = el('div', 'fsmeta', `${c.n}${resText() ? '  ·  ' + resText() : ''}`); m.root.append(meta); }
+}
+function optionsMenu() { // what a long press (or the Menu key) opens where you are
+  if (CARRY) return carryFinish();
+  if (fullscreen) return S.vod ? vodFsMenu() : fsMenu();
+  if (S.mode === 'vod' && zone === 'guide') return vodCardMenu();
+  if (zone === 'guide' && lsOn()) return lsMenu();
+  if (zone === 'guide' && S.items.length) return channelMenu();
+  if (zone === 'side') {
+    const n = T.nodes[T.i];
+    if (n && n.t === 'grp') return groupMenu(n);
+    if (n && n.t === 'prov') return providerMenu(n);
+    if (n && n.t === 'fav') return favNode(n);
+  }
+  openSettings();
+}
+
+/* ---------- keys ---------- */
+const KEYS = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'ok', NumpadEnter: 'ok', ' ': 'ok',
+  Escape: 'back', Backspace: 'back', BrowserBack: 'back', GoBack: 'back', XF86Back: 'back',
+  PageUp: 'pgup', ChannelUp: 'pgup', PageDown: 'pgdn', ChannelDown: 'pgdn',
+  MediaFastForward: 'ff', MediaRewind: 'rw', MediaStop: 'stop', MediaPlayPause: 'pp', MediaPlay: 'pp', MediaPause: 'pp', ContextMenu: 'menu', F1: 'menu', Menu: 'menu'
+};
+/* Right at the live edge: a tap only reminds, a hold (half a second) flips to the most recent other channel */
+let lrHeld = null, lrHinted = false;
+function flipLast() {
+  recentVisible().then((all) => {
+    const r = all.filter((x) => !(S.current && x.p === S.current.p && x.s === S.current.s))[0];
+    if (r) { playRecent(r); pulseInfo(); } else toast('No earlier channel yet');
+  });
+}
+function liveRightHint() {
+  if (S.rw && winding()) pulseBar(); else pulseInfo();
+  if (!lrHinted) { lrHinted = true; toast('Hold Right for the last channel', 2500); }
+}
+function handle(k, e) {
+  const top = MODALS[MODALS.length - 1];
+  if (k === 'back' && !top && !$('#gate').hidden && S.me && S.me.name) { location.reload(); return true; } // backing out of Add profile returns to the profile that is signed in
+  if (top) return modalKey(top, k, e);
+  if (CARRY) return carryKey(k);
+  if (k === 'stop') { if (S.vod) { stopVod(); return true; } if (S.current && (S.playing || S.starting)) stopPlayback('Stopped', 'Press OK on a channel to watch.'); return true; }
+  if (k === 'pp') {
+    if (S.needTap) { const p = video.play(); if (p && p.catch) p.catch(needTap); return true; }
+    if (S.playing) { if (video.paused) video.play(); else video.pause(); }
+    return true;
+  }
+  if (fullscreen) {
+    if (S.vod) return vodKey(k);
+    if (k === 'back') { setFullscreen(false); return true; }
+    if (k === 'ok') { togglePause(); return true; } // the remote has no pause button: OK is it. Holding OK still opens the options.
+    if (k === 'down' && S.rw && !S.vod && S.playing && $('#vbar').classList.contains('show')) { actionRow(); return true; } // while the bar is up, Down reaches the actions
+    if (['up', 'down', 'pgup', 'pgdn'].includes(k)) { // channel up / down while watching full screen: Up is the next higher number, which sits lower in the guide
+      const d = k === 'up' || k === 'pgup' ? 1 : -1;
+      const cur = S.sel && S.current && S.current.p === S.sel.p ? S.items.findIndex((x) => x.s === S.current.s) : -1;
+      const j = cur + d;
+      if (cur >= 0 && j >= 0 && j < S.items.length) { G.i = j; renderGuide(); pulseInfo(); S.pid = S.sel.p; play(S.items[j]); }
+      return true;
+    }
+    if (k === 'right') { liveRightHint(); return true; } // a tap does nothing here: flipping channels takes a hold, so tapping Right back to live can't overshoot
+    if (k === 'left') return true;
+    if (S.rw && k === 'rw') { vodSkip(-30); return true; }
+    if (S.rw && k === 'ff') { if (behindLive() > 5) vodSkip(30); else toast('Already live'); return true; }
+    pulseInfo(); return true;
+  }
+  if (k === 'menu') { optionsMenu(); return true; }
+  if (k === 'back') { if (zone !== 'side') { setZone('side'); return true; } return false; }
+  if (zone === 'side') {
+    if (k === 'up') treeMove(-1); else if (k === 'down') treeMove(1);
+    else if (k === 'ok') treeEnter();
+    else if (k === 'right') { const n = T.nodes[T.i]; if (n && ((n.t === 'prov' && !S.open.has(n.p)) || (n.t === 'vprov' && !S.vodOpen.has(n.p)) || (n.t === 'vkind' && !S.vodKind.has(n.p + '|' + n.k)))) treeEnter(); else if (hasList()) setZone('guide'); }
+    else if (k === 'left') {
+      const n = T.nodes[T.i];
+      if (n && ((n.t === 'prov' && S.open.has(n.p)) || (n.t === 'vprov' && S.vodOpen.has(n.p)) || (n.t === 'vkind' && S.vodKind.has(n.p + '|' + n.k)))) treeEnter();
+      else if (n && n.child) { let j = T.i - 1; while (j >= 0 && !(n.c2 ? T.nodes[j].t === 'vkind' : (T.nodes[j].t === 'prov' || T.nodes[j].t === 'vprov'))) j--; if (j >= 0) { T.i = j; paintTreeFocus(); } }
+    }
+    return true;
+  }
+  if (zone === 'set') {
+    if (k === 'ok') openSettings(); else if (k === 'up') { setZone('side'); } else if (k === 'right') { if (hasList()) setZone('guide'); }
+    return true;
+  }
+  if (zone === 'tool') {
+    if (k === 'left') setZone('prev');
+    else if (k === 'down') { if (hasList()) setZone('guide'); }
+    else if (k === 'ok') { if (S.mode === 'vod') sortMenu(); else doSearch(); }
+    return true;
+  }
+  if (zone === 'prev') {
+    if (S.mode === 'vod') { if (k === 'ok') { if (V.detail) vodPlayDetail(); } else if (k === 'right') { if (sortable()) setZone('tool'); } else if (k === 'down') { if (!descScroll(1) && hasList()) setZone('guide'); } else if (k === 'up') descScroll(-1); else if (k === 'left') setZone('side'); return true; }
+    if (k === 'ok') { if (S.needTap) { const p = video.play(); if (p && p.catch) p.catch(needTap); } else if (S.playing || S.starting) setFullscreen(true); }
+    else if (k === 'down') { if (hasList()) setZone('guide'); }
+    else if (k === 'left') setZone('side');
+    return true;
+  }
+  if (zone === 'guide' && S.mode === 'vod') {
+    if (k === 'pgup' || k === 'pgdn') { if (V.detail && descScroll(k === 'pgdn' ? 1 : -1)) return true; }
+    if (['up', 'down', 'left', 'right', 'pgup', 'pgdn'].includes(k)) wallMove(k); else if (k === 'ok') vodOk();
+    return true;
+  }
+  if (zone === 'guide' && lsOn()) {
+    if (['up', 'down', 'left', 'right', 'pgup', 'pgdn'].includes(k)) lsMove(k); else if (k === 'ok') lsOk();
+    return true;
+  }
+  if (zone === 'guide') {
+    if (['up', 'down', 'left', 'right', 'pgup', 'pgdn'].includes(k)) guideMove(k);
+    else if (k === 'ok') guideOk();
+    return true;
+  }
+  return false;
+}
+let okHold = null, okSwallow = false;
+let lastKeyAt = 0; // when the person last pressed anything
+const byPerson = () => Date.now() - lastKeyAt < 2500;
+document.addEventListener('keyup', (e) => { lastKeyAt = Date.now();
+  if (e.key === 'Enter' || e.key === ' ') okSwallow = false;
+  if (SC.dir && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); scrubEnd(); return; }
+  if (e.key === 'ArrowRight' && lrHeld) { const h = lrHeld; lrHeld = null; clearTimeout(h.timer); if (!h.fired && !MODALS.length) handle('right', e); return; }
+  if (e.key !== 'Enter' || !okHold) return;
+  const h = okHold; okHold = null; clearTimeout(h.timer);
+  if (!h.fired && !MODALS.length) handle('ok', e);
+});
+document.addEventListener('keydown', (e) => { lastKeyAt = Date.now();
+  const top = MODALS[MODALS.length - 1];
+  if ((e.key === 'Enter' || e.key === ' ') && (e.repeat || okSwallow) && !(top && top.root.querySelector('#oskIn'))) { e.preventDefault(); return; } // a held OK must not press the first option of the menu it just opened
+  // the on-screen keyboard also takes typing from a physical keyboard
+  if (top && top.onkey && top.root.querySelector('#oskIn,#pinPad') && top.onkey('', e)) { e.preventDefault(); return; }
+  adultPing();
+  if (winding() && fullscreen && !top && (e.key === 'ArrowLeft' || (e.key === 'ArrowRight' && (S.vod || behindLive() > 5 || SC.dir))) && !(e.key === 'ArrowLeft' && !S.vod && !rng().hi)) { e.preventDefault(); if (!e.repeat && !SC.dir) scrubStart(e.key === 'ArrowRight' ? 1 : -1); return; }
+  if (fullscreen && !top && !S.vod && !CARRY && e.key === 'ArrowRight') { // at the live edge (behind live is handled just above)
+    e.preventDefault();
+    if (!e.repeat && !lrHeld) { const h = lrHeld = { fired: false }; h.timer = setTimeout(() => { if (lrHeld === h && !MODALS.length) { h.fired = true; flipLast(); } }, 550); }
+    return;
+  }
+  const k = KEYS[e.key];
+  if (k === 'ok' && !top && (fullscreen || zone === 'guide' || zone === 'side') && e.key !== ' ') {
+    // OK acts when released; held for half a second it opens the options menu instead
+    e.preventDefault();
+    if (!e.repeat && !okHold) {
+      const h = okHold = { t: Date.now(), fired: false };
+      h.timer = setTimeout(() => { if (okHold === h && !h.fired && !MODALS.length) { h.fired = true; okSwallow = true; optionsMenu(); } }, 550);
+    }
+    return;
+  }
+  if (!k) return;
+  e.preventDefault();
+  handle(k, e);
+});
+/* The Android app calls these: Back (returns false when there is nothing left to back out of) and remote keys it has to translate. */
+window.__tv = { dlAsk, dlList, dl: () => DL, play, recentVisible, recent, adultRefresh, zone: () => zone, fs: () => fullscreen, S, G, setFs: setFullscreen, showProfiles, cellAt, progsOf, xAt, recList, stopVod, rec: () => REC }; // for the self-test
+window.ZibbitTV = {
+  back() { const top = MODALS[MODALS.length - 1]; if (top) { top.close(null); return true; } return !!handle('back', null); },
+  key(name) {
+    if (name === 'play') { if (S.needTap || video.paused) { const p = video.play(); if (p && p.catch) p.catch(needTap); } return true; }
+    if (name === 'pause') { if (S.playing && !video.paused) video.pause(); return true; }
+    if (name === 'backhold') { // hold Back: the channel in the preview goes full screen
+      if (!MODALS.length && !CARRY && !fullscreen && !S.vod && S.current && (S.playing || S.starting)) { setFullscreen(true); pulseInfo(); }
+      return true;
+    }
+    const m = { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'ok', stop: 'stop', playpause: 'pp', chup: 'pgup', chdown: 'pgdn', menu: 'menu' }[name];
+    if (m) { handle(m, null); return true; }
+    return false;
+  },
+  /* the app went to the background (Home) or came back: the picture is gone, so pause the sound and stop the stream after the usual delay */
+  hidden(on) {
+    if (on) {
+      if (S.playing || S.starting) {
+        S.wasPlaying = true;
+        if (!video.paused) video.pause();
+        clearTimeout(S.timers.hidden);
+        if (settings.hiddenStop) S.timers.hidden = setTimeout(() => stopPlayback('Stopped while you were away', 'Press OK on a channel to watch.'), settings.hiddenStop * 1000);
+      }
+    } else {
+      clearTimeout(S.timers.hidden);
+      if (S.wasPlaying && S.playing && video.paused) { const p = video.play(); if (p && p.catch) p.catch(needTap); }
+      S.wasPlaying = false;
+    }
+  },
+  /* the app is being closed: tell the server now rather than waiting for a timer */
+  leave() {
+    if (S.vod) vodSave();
+    const c = S.current;
+    if (c && (S.playing || S.starting) && navigator.sendBeacon) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ p: c.p, s: c.s, cid: CID })], { type: 'application/json' }));
+  }
+};
+document.addEventListener('click', (e) => { // a mouse (desktop testing) can poke the toolbar and preview
+  const t = e.target.closest('#chSearch,#stage');
+  if (!t || MODALS.length) return;
+  if (t.id === 'chSearch') doSearch(); else if (S.playing || S.starting) setFullscreen(true);
+});
+window.addEventListener('resize', () => { if (S.mode === 'vod') { paintWall(); return; } if (S.items.length && S.sel) { const g = G.gx; layoutGuide(); G.gx = g; renderGuide(); } });
+$('#setNode').addEventListener('click', () => openSettings());
+$('#chSearch').addEventListener('mousemove', () => {});
+
+/* ================= movies and shows =================
+   A second mode next to Live TV. The sidebar lists each provider's Movies and Shows, the lower pane becomes a poster wall,
+   the first OK on a title shows its details in the preview, the second OK plays it full screen. */
+S.mode = 'tv'; S.vod = null; S.vodCats = new Map(); S.vodOpen = new Set(); S.vodKind = new Set();
+const V = { sel: null, items: [], total: 0, i: 0, top: 0, cols: 6, rows: 1, seq: 0, dseq: 0, more: false, detail: null, cards: new Map(), lastQ: '', sort: 'new', ssort: 'best' };
+try { const x = localStorage.getItem('tv.vod.sort'); if (['new', 'az', 'rating', 'year'].includes(x)) V.sort = x; } catch (e) { /* none saved */ }
+const SORT_NAME = { best: 'Best match', new: 'Recently added', az: 'A-Z', rating: 'Highest rated', year: 'Newest release' };
+const hasList = () => (S.mode === 'vod' ? V.items.length > 0 : lsOn() ? LS.flat.length > 0 : S.items.length > 0);
+const vodProvs = () => S.providers.filter((p) => p.type === 'xtream');
+const fmtDur = (sec) => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+const sameTitle = (a, b) => a && b && a.pid === b.pid && a.k === b.k && a.id === b.id;
+
+/* what was watched, newest first; for a show it remembers the episode and the place in it */
+const vodHist = {
+  key() { return 'tv.vod.' + (S.me.name || ''); },
+  all() { try { const a = JSON.parse(store.get(this.key())); return Array.isArray(a) ? a.filter((x) => x && x.pid && x.id) : []; } catch { return []; } },
+  find(it) { return this.all().find((x) => sameTitle(x, it)); },
+  put(e) { const a = this.all().filter((x) => !sameTitle(x, e)); a.unshift(e); store.set(this.key(), JSON.stringify(a.slice(0, 5))); },
+  clear() { store.set(this.key(), '[]'); }
+};
+const norm = (pid, k, m) => ({ pid, k, id: m.id, n: m.n, y: m.y || '', r: m.r || 0, i: m.p || '', e: m.e || '', a: m.a || 0 });
+
+/* ---------- switching between Live TV and Movies & Shows ---------- */
+async function setMode(m) {
+  if (S.mode === m) return;
+  S.loadSeq++;
+  if (S.vod) stopVod();
+  lsOff();
+  const main = $('#main'), gd = $('#guide');
+  if (m === 'vod') {
+    if (S.current && (S.playing || S.starting)) stopPlayback('Stopped', '');
+    S.mode = 'vod'; S.items = []; S.total = 0;
+    main.classList.add('vod'); gd.classList.add('vod'); $('#wall').hidden = false; gmsg(null);
+    $('#nowName').textContent = 'Movies & Shows'; for (const id of ['#nowProg', '#nowTime', '#nowDesc']) $(id).textContent = ''; $('#bar').hidden = true; $('#nowLogo').replaceChildren();
+    showOverlay('Movies & Shows', 'Pick a title and press OK.');
+    if (!V.sel) wallMsg('Movies & Shows', 'Open a provider on the left, then pick Movies or Shows and a category. Recent has what you watched last.'); else paintWall();
+    renderTree(); setZone('side');
+  } else {
+    S.mode = 'tv'; V.detail = null;
+    main.classList.remove('vod'); gd.classList.remove('vod'); $('#wall').hidden = true;
+    if (S.current) { renderNow(); showOverlay('Last watched', S.current.n); } else { renderNow(); showOverlay('Nothing is playing', 'Pick a channel and press OK.'); }
+    renderTree();
+    if (S.sel) await loadItems();
+    setZone('side');
+  }
+}
+
+/* ---------- the sidebar for Movies & Shows ---------- */
+function vodNodes() {
+  const out = [{ t: 'vhist', label: 'Recent', ct: vodHist.all().length }];
+  const ps = vodProvs();
+  if (!ps.length) out.push({ t: 'info', label: 'No provider has movies', child: true });
+  for (const p of ps) {
+    out.push({ t: 'vprov', p: p.id, label: p.name });
+    if (!S.vodOpen.has(p.id)) continue;
+    const c = S.vodCats.get(p.id);
+    if (!c) { out.push({ t: 'info', label: 'Loading catalog…', child: true }); continue; }
+    if (c.err) { out.push({ t: 'vretry', p: p.id, label: 'Couldn’t load. OK to retry', child: true }); continue; }
+    for (const [k, label, cats, total] of [['movie', 'Movies', c.movies, c.movieTotal], ['show', 'Shows', c.shows, c.showTotal]]) {
+      if (!cats || !cats.length) continue;
+      out.push({ t: 'vkind', p: p.id, k, label, ct: total, child: true });
+      if (!S.vodKind.has(p.id + '|' + k)) continue;
+      for (const cat of cats) out.push({ t: 'vcat', p: p.id, k, id: cat.id, label: lockMark(cat) + cat.name, lock: !!cat.lock, ct: cat.count, child: true, c2: true });
+    }
+    out.push({ t: 'vmanage', p: p.id, label: 'Manage categories…', child: true, dim: true });
+  }
+  return out;
+}
+function vodSelMatch(n) {
+  const s = V.sel; if (S.mode !== 'vod' || !s) return false;
+  if (n.t === 'vhist') return s.k === 'hist';
+  if (s.k !== 'list' || s.p !== n.p || s.kind !== n.k) return false;
+  if (n.t === 'vlist') return !s.cat && s.sort === n.sort;
+  if (n.t === 'vcat') return s.cat === n.id;
+  return false;
+}
+async function vodCatsFor(pid) {
+  if (S.vodCats.get(pid) && !S.vodCats.get(pid).err) return;
+  S.vodCats.delete(pid); renderTree();
+  try {
+    const j = await api(`/api/p/${pid}/vod-cats`);
+    if (!j.supported) S.vodCats.set(pid, { movies: [], shows: [], movieTotal: 0, showTotal: 0 });
+    else S.vodCats.set(pid, { movies: j.movies || [], shows: j.shows || [], movieTotal: j.movieTotal || 0, showTotal: j.showTotal || 0, err: (j.movieError && j.showError) ? 'x' : '' });
+  } catch (e) { if (e.status === 401) return location.reload(); S.vodCats.set(pid, { err: e.message }); }
+  renderTree();
+}
+async function vodEnter(n) {
+  if (n.t === 'vprov') {
+    if (S.vodOpen.has(n.p)) { S.vodOpen.delete(n.p); renderTree(); return; }
+    S.vodOpen.add(n.p); renderTree();
+    if (!S.vodCats.get(n.p)) toast('Loading the movie list. The first time can take a minute.', 5000);
+    await vodCatsFor(n.p); return;
+  }
+  if (n.t === 'vretry') { S.vodCats.delete(n.p); await vodCatsFor(n.p); return; }
+  if (n.t === 'vmanage') return openVodGroups(n.p);
+  if (n.t === 'vcat' && n.lock && !S.adult.open && !(await tvNeedPin())) return;
+  if (n.t === 'vkind') { const key = n.p + '|' + n.k; if (S.vodKind.has(key)) S.vodKind.delete(key); else S.vodKind.add(key); renderTree(); return; }
+  const pn = prov(n.p) ? prov(n.p).name : '';
+  if (n.t === 'vhist') await vodOpenList({ k: 'hist' });
+  else if (n.t === 'vlist') await vodOpenList({ k: 'list', p: n.p, kind: n.k, cat: '', sort: n.sort, label: `${pn}: ${n.k === 'movie' ? 'Movies' : 'Shows'}, ${n.label.toLowerCase()}` });
+  else if (n.t === 'vcat') await vodOpenList({ k: 'list', p: n.p, kind: n.k, cat: n.id, sort: 'az', label: `${pn}: ${n.label}` });
+  renderTree(); // as with channel groups, the focus stays in the sidebar; Right opens the list
+}
+
+/* ---------- lists and the poster wall ---------- */
+async function vodOpenList(sel) {
+  const seq = ++V.seq;
+  V.sel = sel; V.items = []; V.total = 0; V.i = 0; V.top = 0; V.cards.clear(); V.more = false;
+  if (sel.k === 'hist') {
+    const mine = await vodHistVisible();
+    if (seq !== V.seq) return;
+    V.items = mine.map((h) => ({ pid: h.pid, k: h.k, id: h.id, n: h.n, i: h.i || '', e: h.ext || '', pos: h.t || 0, dur: h.d || 0, ep: h.ep || null }));
+    V.total = V.items.length;
+    if (V.items.length) V.items.push({ clear: true, n: 'Clear history' });
+    paintWall();
+    return;
+  }
+  paintWall('Loading…');
+  await vodMore(seq);
+}
+async function vodMore(seq0) {
+  const sel = V.sel, seq = seq0 || V.seq;
+  if (!sel || sel.k !== 'list' || V.more) return;
+  if (V.items.length && V.items.length >= V.total) return;
+  V.more = true;
+  try {
+    const j = await api(`/api/p/${sel.p}/vod-list?kind=${sel.kind}&cat=${encodeURIComponent(sel.cat || '')}&sort=${V.sort}&off=${V.items.length}&lim=60`);
+    if (seq !== V.seq) return;
+    if (j.locked) { paintWall('This category is locked', 'Choose it from the list on the left to enter your PIN.'); return; }
+    V.total = j.total; for (const m of j.items) V.items.push(norm(sel.p, sel.kind, m));
+  } catch (e) { if (e.status === 401) return location.reload(); if (seq === V.seq && !V.items.length) { paintWall('Couldn’t load this list', e.message); return; } }
+  finally { if (seq === V.seq) V.more = false; }
+  if (seq === V.seq) paintWall();
+}
+function wallMsg(title, body) {
+  const w = $('#wall'); w.replaceChildren(); w.style.display = 'grid';
+  const d = el('div', 'wmsg'); d.append(el('strong', '', title)); if (body) d.append(el('span', '', body)); w.append(d);
+}
+function vodCard(it, idx) {
+  let c = V.cards.get(idx); if (c) return c;
+  c = el('div', 'vc'); const p = el('div', 'vp');
+  if (it.clear) { p.append(el('span', 'vi vx', '✕')); }
+  else {
+    const ini = () => { p.append(el('span', 'vi', initials(it.n))); };
+    if (it.i) { const im = new Image(); im.alt = ''; im.decoding = 'async'; im.onerror = () => { im.remove(); ini(); }; im.src = it.i; p.append(im); } else ini();
+    if (it.dur && it.pos > 5) { const pg = el('div', 'vm'); const b = el('i'); b.style.width = Math.min(100, (it.pos / it.dur) * 100) + '%'; pg.append(b); p.append(pg); }
+  }
+  c.append(p, el('div', 'vt', it.n));
+  if (V.cards.size > 400) V.cards.clear();
+  V.cards.set(idx, c); return c;
+}
+function paintWall(msg, body) {
+  const w = $('#wall'); if (w.hidden) return;
+  if (msg) { wallMsg(msg, body); updateVodToolbar(); return; }
+  if (!V.items.length) {
+    const s = V.sel;
+    if (!s) wallMsg('Pick something to watch', 'Open a provider on the left, then choose Movies or Shows and a category. Recent has what you watched last.');
+    else if (s.k === 'hist') wallMsg('Nothing watched yet', 'Pick Movies or Shows under a provider. The last five you watch show up here.');
+    else if (s.k === 'search') wallMsg('Nothing matches', `No movie or show matches “${s.q}”. Try fewer words.`);
+    else wallMsg('Nothing here', 'This list is empty.');
+    updateVodToolbar(); return;
+  }
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), W = w.clientWidth, H = w.clientHeight;
+  w.style.display = 'grid';
+  const cols = Math.max(3, Math.floor((W - 2 * rem) / (5.3 * rem)));
+  V.cols = cols;
+  const colW = (W - 2 * rem - (cols - 1) * 0.4 * rem) / cols;
+  const cardH = (colW - 0.8 * rem) * 1.5 + 2.9 * rem;
+  V.rows = Math.max(1, Math.floor((H - 1 * rem + 0.5 * rem) / (cardH + 0.5 * rem)));
+  w.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+  const row = Math.floor(V.i / cols);
+  if (row < V.top) V.top = row; else if (row >= V.top + V.rows) V.top = row - V.rows + 1;
+  const frag = document.createDocumentFragment();
+  const from = V.top * cols, to = Math.min(V.items.length, from + V.rows * cols);
+  for (let i = from; i < to; i++) { const c = vodCard(V.items[i], i); c.classList.toggle('foc', zone === 'guide' && i === V.i); frag.append(c); }
+  w.replaceChildren(frag);
+  updateVodToolbar();
+}
+function updateVodToolbar() {
+  const s = V.sel, hl = $('#hl');
+  let label = '';
+  if (s) label = (s.k === 'hist' ? 'Recent' : s.label || '') + (s.k === 'list' || s.k === 'search' ? `  ·  ${V.total.toLocaleString()} titles` : '');
+  hl.dataset.base = label;
+  const ch = $('#vSort'); ch.hidden = !sortable(); if (!ch.hidden) ch.textContent = 'Sort: ' + SORT_NAME[s.k === 'search' ? V.ssort : V.sort];
+  paintHighlight();
+}
+function wallMove(k) {
+  const n = V.items.length, c = V.cols; let i = V.i;
+  if (k === 'left') { if (i % c === 0) return setZone('side'); i--; }
+  else if (k === 'right') { if (i + 1 < n && (i + 1) % c) i++; }
+  else if (k === 'up') { if (i < c) { i = Math.min(n - 1, Math.floor((n - 1) / c) * c + (i % c)); if (i === V.i) i = n - 1; } else i -= c; }
+  else if (k === 'down') { if (i + c < n) i += c; else if (Math.floor(i / c) < Math.floor((n - 1) / c)) i = n - 1; else i = i % c; }
+  else if (k === 'pgup') i = Math.max(0, i - c * V.rows);
+  else if (k === 'pgdn') i = Math.min(n - 1, i + c * V.rows);
+  V.i = i; paintWall();
+  if (V.items.length - i < c * 3 && V.sel && V.sel.k === 'list') vodMore();
+}
+
+/* ---------- details in the preview, then play ---------- */
+function vodOk() {
+  const it = V.items[V.i]; if (!it) return;
+  if (it.clear) return confirmClear();
+  if (V.detail && sameTitle(V.detail.it, it) && V.detail.shown) return vodPlayDetail();
+  vodShowDetail(it);
+}
+function confirmClear() {
+  const m = modal(); m.box.append(el('h2', '', 'Clear history?'), el('p', '', 'This removes the movies and shows from Recent on this TV. Live TV recents are not affected.'));
+  const go = btn('Clear', () => { vodHist.clear(); m.close(); vodOpenList({ k: 'hist' }); renderTree(); if (!V.items.length) setZone('side'); }, 'primary');
+  const row = el('div', 'mrow'); row.append(go, btn('Cancel', () => m.close())); m.box.append(row); m.focus(go);
+}
+function descMarks() { // a long plot gets smaller type until all of it fits, so there is nothing to scroll
+  const d = $('#nowDesc'), box = $('#details'); box.classList.remove('vmore', 'vup');
+  d.style.fontSize = '';
+  if (S.mode !== 'vod' || !d.clientHeight) return;
+  let px = parseFloat(getComputedStyle(d).fontSize); const min = px * 0.62;
+  while (d.scrollHeight > d.clientHeight + 1 && px > min) { px *= 0.94; d.style.fontSize = px + 'px'; }
+}
+function descScroll(dir) { // true when it moved
+  const d = $('#nowDesc'), before = d.scrollTop, line = parseFloat(getComputedStyle(d).lineHeight) || 20;
+  d.scrollTop = before + dir * line * 3; descMarks(); return d.scrollTop !== before;
+}
+function paintDetail() {
+  const d = V.detail; if (!d) return;
+  const it = d.it, info = d.info || {}, h = vodHist.find(it);
+  const logo = $('#nowLogo'); logo.replaceChildren();
+  if (it.i) { const im = new Image(); im.alt = ''; im.src = it.i; im.onerror = () => { im.remove(); logo.textContent = initials(it.n); }; logo.append(im); } else logo.textContent = initials(it.n);
+  $('#nowName').textContent = it.n;
+  const bits = [info.y || it.y, info.mins ? (info.mins >= 60 ? Math.floor(info.mins / 60) + ' h ' + (info.mins % 60 ? (info.mins % 60) + ' min' : '') : info.mins + ' min') : '', (info.r || it.r) ? '★ ' + (info.r || it.r).toFixed(1) : '', (info.genre || '').split(',').slice(0, 2).map((x) => x.trim()).join(', ')];
+  if (it.k === 'show' && info.seasons) bits.push(info.seasons.length + (info.seasons.length === 1 ? ' season' : ' seasons'));
+  $('#nowProg').textContent = bits.filter(Boolean).join('   ·   ');
+  $('#nowTime').textContent = info.cast ? 'With ' + String(info.cast).split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4).join(', ') : '';
+  $('#nowDesc').textContent = info.plot || (d.info ? '' : 'Loading details…'); descMarks();
+  const bar = $('#bar');
+  if (h && h.d && h.t > 30 && h.t < h.d * 0.95) { bar.hidden = false; $('i', bar).style.width = (h.t / h.d) * 100 + '%'; } else bar.hidden = true;
+  const o = $('#ov'); o.replaceChildren(); $('#stage').classList.remove('poster');
+  const pic = info.p || it.i; // the poster, large, in place of the screen preview
+  if (pic) { const im = new Image(); im.alt = ''; im.className = 'vbk pst'; im.src = pic; im.onerror = () => { im.remove(); $('#stage').classList.remove('poster'); }; o.append(im); $('#stage').classList.add('poster'); }
+  setTimeout(descMarks, 0);
+  const cta = it.k === 'show' ? (h && h.ep ? `OK to continue S${h.ep.s} E${h.ep.e}` : 'OK to choose an episode') : (h && h.t > 30 && h.t < h.d * 0.95 ? `OK to resume at ${fmtDur(h.t)}` : 'OK to play');
+  const box = el('div', 'vcta'); box.append(el('span', '', cta)); o.append(box);
+  o.hidden = false;
+}
+async function vodShowDetail(it) {
+  const seq = ++V.dseq;
+  V.detail = { it, info: null, shown: true };
+  paintDetail();
+  try {
+    const info = await api(`/api/p/${it.pid}/vod-info?kind=${it.k}&id=${it.id}`);
+    if (seq !== V.dseq) return;
+    V.detail.info = info; if (!it.e && info.e) it.e = info.e;
+    paintDetail();
+  } catch (e) { if (e.status === 401) return location.reload(); if (seq === V.dseq) { V.detail.info = {}; $('#nowDesc').textContent = 'Couldn’t load the details. OK still plays it.'; } }
+}
+async function vodPlayDetail() {
+  const d = V.detail; if (!d) return;
+  if (!d.info) { toast('One moment…'); return; }
+  const it = d.it, info = d.info;
+  if (it.k === 'movie') return vodStart({ pid: it.pid, k: 'movie', id: it.id, n: it.n, i: it.i, ext: info.e || it.e, ep: null });
+  episodePicker(it, info);
+}
+function episodePicker(it, info) {
+  const seasons = info.seasons || [];
+  if (!seasons.length) return toast('No episodes listed for this show');
+  const h = vodHist.find(it);
+  const m = listMenu(it.n);
+  const flat = [];
+  for (const sn of seasons) for (const e of sn.eps) flat.push({ s: sn.s, e: e.n, id: e.id, t: e.t, ext: e.e });
+  const entryFor = (e) => ({ pid: it.pid, k: 'show', id: it.id, n: it.n, i: it.i, ext: '', ep: { id: e.id, s: e.s, e: e.e, t: e.t, ext: e.ext }, eps: flat });
+  if (h && h.ep) {
+    const cur = flat.find((x) => x.id === h.ep.id);
+    if (cur) m.row(`Continue S${cur.s} E${cur.e}${cur.t ? '  ' + cur.t : ''}${h.t > 30 && h.t < h.d * 0.95 ? '   (' + fmtDur(h.t) + ')' : ''}`, () => vodStart(entryFor(cur)));
+  }
+  for (const sn of seasons) {
+    m.row(`Season ${sn.s}   (${sn.eps.length} episode${sn.eps.length === 1 ? '' : 's'})`, () => {
+      const sm = listMenu(`${it.n}, season ${sn.s}`);
+      for (const e of sn.eps) sm.row(`${e.n}.  ${e.t || 'Episode ' + e.n}${e.mins ? '   ' + e.mins + ' min' : ''}`, () => { m.close(); vodStart(entryFor({ s: sn.s, e: e.n, id: e.id, t: e.t, ext: e.e })); });
+      sm.finish();
+    }, true);
+  }
+  m.finish();
+}
+
+/* ---------- playback ---------- */
+function vodStart(en) {
+  const h = vodHist.find(en);
+  const same = h && (en.k === 'movie' || (h.ep && en.ep && h.ep.id === en.ep.id));
+  if (same && h.d && h.t > 30 && h.t < h.d * 0.95) {
+    const m = modal(); m.box.append(el('h2', '', en.n), el('p', '', en.ep ? `Season ${en.ep.s}, episode ${en.ep.e}` : 'You stopped part of the way through.'));
+    const go = btn(`Resume from ${fmtDur(h.t)}`, () => { m.close(); vodPlay(en, h.t); }, 'primary');
+    const row = el('div', 'mrow'); row.append(go, btn('Start from the beginning', () => { m.close(); vodPlay(en, 0); })); m.box.append(row); m.focus(go);
+    return;
+  }
+  vodPlay(en, 0);
+}
+function vodPlay(en, at) {
+  clearTimers();
+  const prev = S.current;
+  teardownPlayer(); S.playSeq++;
+  if (prev) { stopServer(prev); S.current = null; }
+  const ext = en.ep ? en.ep.ext : en.ext;
+  S.vod = Object.assign({}, en, { at: at || 0, saved: 0, seeked: false, ext });
+  const url = en.url || `/vod/${en.pid}/${en.k === 'show' ? 'show' : 'movie'}/${en.k === 'show' ? en.ep.id : en.id}.${ext || 'mp4'}`;
+  $('#stage').classList.add('vodp');
+  setFullscreen(true); $('#fsinfo').classList.remove('show');
+  showOverlay('Loading', en.n, true);
+  video.src = url;
+  const p = video.play(); if (p && p.catch) p.catch(needTap);
+  if (en.k === 'show' && !en.eps) vodEps(en);
+  vodSave(true);
+}
+async function vodEps(en) { // a resumed show doesn't carry its episode list; fetch it so the next episode can follow
+  try {
+    const info = await api(`/api/p/${en.pid}/vod-info?kind=show&id=${en.id}`);
+    if (S.vod && S.vod.id === en.id && S.vod.pid === en.pid) { const flat = []; for (const sn of info.seasons) for (const e of sn.eps) flat.push({ s: sn.s, e: e.n, id: e.id, t: e.t, ext: e.e }); S.vod.eps = flat; }
+  } catch { /* no auto-next */ }
+}
+function vodSave(force) {
+  const v = S.vod; if (!v) return;
+  const t = Math.floor(video.currentTime || 0), d = Math.floor(video.duration || 0) || (v.dur || 0);
+  if (v.rec) { // a recording remembers where you stopped on the server, not in the watch history
+    if (t >= 5) { send(posApi(v), { t: d && t >= d - 30 ? 0 : t }, 'PUT').catch(() => {}); v.saved = Date.now(); }
+    return;
+  }
+  if (!force && t < 5) return;
+  if (d) v.dur = d;
+  vodHist.put({ pid: v.pid, k: v.k, id: v.id, n: v.n, i: v.i, ext: v.k === 'movie' ? v.ext : '', ep: v.ep ? { id: v.ep.id, s: v.ep.s, e: v.ep.e, t: v.ep.t, ext: v.ep.ext } : null, t: force && t < 5 ? (v.at || 0) : t, d: d || (vodHist.find(v) || {}).d || 0 });
+  v.saved = Date.now();
+  if (v.k === 'show' && v.eps && v.ep && d && t >= d * 0.95) { // finished this episode: Recent offers the next one
+    const i = v.eps.findIndex((x) => x.id === v.ep.id), nx = i >= 0 ? v.eps[i + 1] : null;
+    if (nx) vodHist.put({ pid: v.pid, k: 'show', id: v.id, n: v.n, i: v.i, ext: '', ep: nx, t: 0, d: 0 });
+  }
+}
+function stopVod(title, sub) {
+  if (!S.vod) return;
+  vodSave();
+  S.vod = null; S.playSeq++; clearTimers(); scrubStop();
+  teardownPlayer();
+  if (fullscreen) setFullscreen(false);
+  $('#stage').classList.remove('vodp'); $('#vbar').classList.remove('show');
+  if (title) toast(title + (sub ? '. ' + sub : ''), 5000);
+  if (V.sel && V.sel.k === 'hist') { const keep = V.items[V.i]; vodOpenList({ k: 'hist' }).then(() => { if (keep) { const j = V.items.findIndex((x) => sameTitle(x, keep)); if (j >= 0) V.i = j; } paintWall(); renderTree(); }); } else { V.cards.clear(); paintWall(); renderTree(); }
+  if (V.detail) paintDetail(); else showOverlay('Movies & Shows', 'Pick a title and press OK.');
+}
+function vodNext() {
+  const v = S.vod; if (!v || v.k !== 'show' || !v.eps || !v.ep) return false;
+  const i = v.eps.findIndex((x) => x.id === v.ep.id);
+  const nx = i >= 0 ? v.eps[i + 1] : null; if (!nx) return false;
+  vodSave(); const en = Object.assign({}, v, { ep: nx, ext: '' }); delete en.at; delete en.saved; delete en.seeked;
+  vodHist.put({ pid: v.pid, k: 'show', id: v.id, n: v.n, i: v.i, ext: '', ep: nx, t: 0, d: 0 });
+  toast(`Next: S${nx.s} E${nx.e}${nx.t ? '  ' + nx.t : ''}`, 4000);
+  vodPlay(en, 0); return true;
+}
+video.addEventListener('loadedmetadata', () => {
+  const v = S.vod; if (!v || v.seeked) return; v.seeked = true;
+  if (v.at > 0) { try { video.currentTime = v.at; } catch { /* seeks once it can */ } }
+  v.dur = video.duration || 0;
+});
+video.addEventListener('timeupdate', () => {
+  const v = S.vod;
+  if (!v) { if (S.rw && S.playing && $('#vbar').classList.contains('show') && !SC.active) paintBar(video.currentTime); return; }
+  if (Date.now() - v.saved > 10000) vodSave();
+  if ($('#vbar').classList.contains('show') && !SC.active) paintBar(video.currentTime);
+});
+video.addEventListener('ended', () => { const v = S.vod; if (!v) return; if (vodNext()) return; if (v.rec) { send(posApi(v), { t: 0 }, 'PUT').catch(() => {}); v.saved = Date.now(); return stopVod(); } vodHist.put({ pid: v.pid, k: v.k, id: v.id, n: v.n, i: v.i, ext: v.k === 'movie' ? v.ext : '', ep: v.ep || null, t: Math.floor(video.duration || 0), d: Math.floor(video.duration || 0) }); S.vod.saved = Date.now(); stopVod(); });
+video.addEventListener('error', async () => {
+  if (!S.vod || S.tearing) return;
+  const v = S.vod, code = video.error ? video.error.code : 0, src = video.currentSrc || video.src;
+  if (video.currentTime) return stopVod('Playback stopped', 'The connection may have dropped');
+  // nothing played: ask the server what the provider sent, to tell a missing file from a format this TV can't decode
+  let st = 0, ct = '';
+  try { const r = await fetch(src, { headers: { Range: 'bytes=0-0' } }); st = r.status; ct = r.headers.get('content-type') || ''; if (r.body && r.body.cancel) r.body.cancel(); } catch { st = -1; }
+  if (S.vod !== v) return;
+  if (st === -1) return stopVod('Couldn’t reach the server', 'Check your connection, then try again');
+  if (st >= 400 || /html|json|text|xml/i.test(ct)) return stopVod('The provider didn’t send this file', st >= 400 ? `It may be missing on their server (error ${st}). Try another title.` : 'It sent a web page instead of a video. Try another title.');
+  stopVod('This TV can’t play this file’s format', code === 3 ? 'The video or sound couldn’t be decoded here.' : 'The video or sound format isn’t supported here.');
+});
+video.addEventListener('pause', () => { if (winding() && !S.tearing && byPerson()) pulseBar(true); });
+video.addEventListener('play', () => { if (winding() && byPerson()) pulseBar(); });
+video.addEventListener('seeked', () => { if (winding() && byPerson()) pulseBar(); }); // the player's own jumps (start-up, gaps, stall recovery) stay quiet
+
+/* ---------- the seek bar, and holding Left / Right to scan ---------- */
+const SC = { dir: 0, t0: 0, active: false, target: 0, timer: null, iv: null };
+let barT = null;
+/* what can be reached by seeking: a movie is 0 to its length; a live channel is whatever the server's buffer still holds */
+function rng() {
+  if (S.vod) return { lo: 0, hi: video.duration || S.vod.dur || 0 };
+  const sk = video.seekable;
+  return sk && sk.length ? { lo: sk.start(0), hi: sk.end(sk.length - 1) } : { lo: 0, hi: 0 };
+}
+const behindLive = () => { const r = rng(); return S.rw && !S.vod ? Math.max(0, r.hi - video.currentTime) : 0; };
+const winding = () => !!S.vod || (!!S.rw && !S.vod && S.playing);
+function paintBar(t) {
+  const v = S.vod;
+  if (!v && !S.rw) return;
+  const bar = $('#vbar'), r = rng(), span = Math.max(0, r.hi - r.lo);
+  if (v) {
+    const dur = r.hi;
+    $('b', bar).textContent = v.n + (v.ep ? `   S${v.ep.s} E${v.ep.e}${v.ep.t ? '  ' + v.ep.t : ''}` : '');
+    $('.trk i', bar).style.width = dur ? Math.min(100, (video.currentTime / dur) * 100) + '%' : '0';
+    const mk = $('.trk u', bar); mk.hidden = !SC.active; if (SC.active && dur) mk.style.left = Math.min(100, (t / dur) * 100) + '%';
+    $('span', bar).textContent = `${video.paused && !SC.active ? '❚❚  ' : SC.active ? (SC.dir > 0 ? '▶▶  ' : '◀◀  ') : ''}${fmtDur(t)} / ${dur ? fmtDur(dur) : '--:--'}`;
+    return;
+  }
+  $('#fsinfo').classList.remove('show'); // the bar carries the channel name, so the plain banner steps aside
+  const at = SC.active ? t : video.currentTime;
+  $('b', bar).textContent = (S.current && S.current.n) || '';
+  $('.trk i', bar).style.width = span ? Math.max(0, Math.min(100, ((at - r.lo) / span) * 100)) + '%' : '100%';
+  const mk = $('.trk u', bar); mk.hidden = !SC.active; if (SC.active && span) mk.style.left = Math.max(0, Math.min(100, ((t - r.lo) / span) * 100)) + '%';
+  const rc = recHere();
+  // no time-behind-live count: the bar's fill already shows where you are in the buffer
+  $('span', bar).textContent = [rc ? '●  REC ' + fmtDur(rc.dur) : '', SC.active ? (SC.dir > 0 ? '▶▶' : '◀◀') : video.paused ? '❚❚  Paused' : '', S.me && S.me.rec ? '▼ Record and more' : ''].filter(Boolean).join('   ·   ');
+}
+/* A buffered channel that is "playing" but whose picture has not moved: say what the player sees, nudge it to live, then start the channel over, then give up */
+let fz = { t: -1, at: 0, tries: 0, cur: '' };
+setInterval(() => {
+  const cur = S.current ? S.current.p + '/' + S.current.s : '';
+  if (cur !== fz.cur) fz = { t: -1, at: 0, tries: 0, cur };
+  // a seek that never finishes counts as frozen too (the position stops where the seek aimed, with the spinner showing), so seeking does not stand the check down
+  if (!cur || !S.rw || S.vod || !S.playing || video.paused || SC.active || S.tearing) { fz.at = 0; fz.t = -1; return; }
+  const t = video.currentTime, now = Date.now();
+  if (Math.abs(t - fz.t) > 0.05) { if (Math.abs(t - fz.t) > 3 || !fz.at) fz.tries = 0; fz.t = t; fz.at = now; return; }
+  if (!fz.at) fz.at = now;
+  if (now - fz.at < 10000) return;
+  fz.at = now;
+  const r = rng(); let b = '';
+  try { for (let i = 0; i < video.buffered.length; i++) b += `${Math.round(video.buffered.start(i))}-${Math.round(video.buffered.end(i))} `; } catch { /* none */ }
+  noteFail(`picture frozen (try ${fz.tries + 1}): at ${Math.round(t)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${b.trim() || 'nothing'}, ready ${video.readyState}, ${video.videoWidth}x${video.videoHeight}`);
+  if (fz.tries === 0 && r.hi) { fz.tries = 1; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } fz.t = video.currentTime; fz.at = Date.now(); } // our own jump is not progress: remember where it aimed so the next check measures from there
+  else if (fz.tries === 1) { fz.tries = 2; const c = S.current; if (c) startPlay({ s: c.s, n: c.n, i: c.i }); }
+  else { fz.tries = 3; fail('This channel isn’t responding'); }
+}, 2000);
+/* paused, nothing fires timeupdate, so a running recording's clock would stand still */
+setInterval(() => { if (fullscreen && winding() && video.paused && !SC.active && $('#vbar').classList.contains('show')) paintBar(video.currentTime); }, 1000);
+function pulseBar(stay) {
+  if (!winding() || !fullscreen) return;
+  const bar = $('#vbar'); bar.classList.add('show'); paintBar(SC.active ? SC.target : video.currentTime);
+  clearTimeout(barT); if (!stay && !SC.active) barT = setTimeout(() => { if (!video.paused) bar.classList.remove('show'); }, 4000);
+}
+function vodSkip(sec) {
+  const r = rng(); if (!r.hi) return;
+  const live = !S.vod;
+  let to = video.currentTime + sec;
+  if (live && sec > 0 && to >= r.hi - 4) to = r.hi - 1; // close to the edge: that is live
+  to = Math.max(r.lo + (live ? 1 : 0), Math.min(live ? r.hi - 1 : r.hi - 2, to));
+  video.currentTime = to; pulseBar(); toast((sec > 0 ? '+' : '−') + Math.abs(sec) + ' s', 900);
+}
+function goLive() { const r = rng(); if (r.hi) { video.currentTime = Math.max(r.lo, r.hi - 1); if (video.paused) video.play().catch(() => {}); pulseBar(); toast('Live', 900); } }
+function scrubTick() {
+  const r = rng(), held = (Date.now() - SC.t0 - 400) / 1000, live = !S.vod;
+  SC.target = Math.max(r.lo, Math.min(live ? r.hi - 1 : Math.max(0, r.hi - 2), SC.target + SC.dir * (60 + Math.min(held, 6) * 60) * 0.1));
+  paintBar(SC.target); $('#vbar').classList.add('show');
+  if (held > 25) scrubEnd(); // a lost key-up must not scan forever
+}
+function scrubStart(dir) {
+  SC.dir = dir; SC.t0 = Date.now(); SC.active = false; clearTimeout(SC.timer); clearInterval(SC.iv);
+  SC.timer = setTimeout(() => { SC.active = true; SC.target = video.currentTime; SC.iv = setInterval(scrubTick, 100); scrubTick(); }, 400);
+}
+function scrubStop() { clearTimeout(SC.timer); clearInterval(SC.iv); SC.active = false; SC.dir = 0; }
+function scrubEnd() {
+  const was = SC.active, dir = SC.dir, to = SC.target;
+  scrubStop();
+  if (!winding()) return;
+  if (was) { video.currentTime = to; pulseBar(); } else if (dir) vodSkip(dir > 0 ? 30 : -10);
+}
+function vodKey(k) { // keys while a movie or episode is on screen
+  if (k === 'back') { stopVod(); return true; }
+  if (k === 'ok') { if (video.paused) video.play(); else video.pause(); pulseBar(video.paused); return true; }
+  if (k === 'left') { vodSkip(-10); return true; }
+  if (k === 'right') { vodSkip(30); return true; }
+  if (k === 'ff') { vodSkip(30); return true; }
+  if (k === 'rw') { vodSkip(-10); return true; }
+  if (k === 'pgup') { vodSkip(-300); return true; }
+  if (k === 'pgdn') { vodSkip(300); return true; }
+  pulseBar(); return true;
+}
+function vodFsMenu() {
+  const v = S.vod; let m;
+  const list = [{ icon: '↺', label: 'Start over', act: () => { m.close(); video.currentTime = 0; pulseBar(); } }];
+  if (v.k === 'show' && v.eps && v.ep) { const i = v.eps.findIndex((x) => x.id === v.ep.id); if (i >= 0 && v.eps[i + 1]) list.push({ icon: '⏭', label: 'Next episode', act: () => { m.close(); vodNext(); } }); }
+  if (S.me && S.me.rec && !v.rec) list.push({ icon: '⇩', label: 'Download', act: () => { m.close(); dlAsk({ pid: v.pid, k: v.k, id: v.id, n: v.n, i: v.i }, v.ep && v.ep.id); } });
+  list.push({ icon: '⟲', label: 'Recent', act: () => { m.close(); vodRecentTiles(); } }, { icon: '✕', label: 'Close', act: () => m.close() });
+  m = tiles(list);
+}
+function vodRecentTiles() {
+  const list = vodHist.all(); let m;
+  const items = list.map((h) => ({ logo: h.i || '', label: h.n, sub: h.ep ? `S${h.ep.s} E${h.ep.e}` : (h.d && h.t > 30 && h.t < h.d * 0.95 ? fmtDur(h.t) : ''), act: () => { m.close(); const cur = S.vod && S.vod.pid === h.pid && S.vod.id === h.id && S.vod.k === h.k; if (!cur) { stopVodQuiet(); const info = { pid: h.pid, k: h.k, id: h.id, n: h.n, i: h.i, ext: h.ext, ep: h.ep }; vodStart(info); } } }));
+  if (list.length) items.push({ icon: '🗑', label: 'Clear history', act: () => { m.close(); vodHist.clear(); toast('History cleared'); renderTree(); } });
+  m = tiles(items.length ? items : [{ icon: '✕', label: 'Nothing watched yet', act: () => m.close() }]);
+}
+function stopVodQuiet() { if (S.vod) { vodSave(); S.vod = null; S.playSeq++; scrubStop(); teardownPlayer(); } }
+
+
+/* ================= downloads =================
+   A movie or episode is copied to this profile's Downloads folder on the server, one at a time per provider. Downloaded files play in the movie player. */
+const DL = { items: [], ready: false };
+const posApi = (v) => (v.rec === 'dl' ? '/api/downloads/' : '/api/recordings/') + encodeURIComponent(v.id) + '/pos';
+async function dlRefresh() {
+  if (!S.me || !S.me.rec) return;
+  try { const r = await api('/api/downloads'); DL.items = r.items || []; DL.ready = !!r.ready; } catch (e) { if (e.status === 401) return location.reload(); }
+  if (T.nodes.length) renderTree();
+  clearTimeout(S.timers.dl);
+  if (DL.items.some((x) => x.state === 'downloading' || x.state === 'waiting')) S.timers.dl = setTimeout(dlRefresh, 5000);
+}
+const fmtSize = (b) => (b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB');
+async function dlQueue(body, quiet) {
+  try { const r = await send('/api/downloads', body, 'POST'); if (!quiet) toast(r.again ? 'Already downloaded or on its way' : 'Added to Downloads', 2600); return true; }
+  catch (e) { toast(e.message, 6000); return false; }
+}
+/* from a movie or show card, or from the player: ask the server for details, then queue it */
+async function dlAsk(it, epId) {
+  let info;
+  try { info = await api(`/api/p/${it.pid}/vod-info?kind=${it.k}&id=${it.id}`); } catch (e) { return toast('Couldn’t load the details: ' + e.message, 5000); }
+  if (it.k === 'movie') { await dlQueue({ p: it.pid, kind: 'movie', id: it.id, ext: info.e || it.e || 'mp4', title: info.n || it.n, year: info.y, mins: info.mins }); return dlRefresh(); }
+  const seasons = info.seasons || []; if (!seasons.length) return toast('No episodes listed for this show');
+  const one = (sn, e) => ({ p: it.pid, kind: 'show', id: e.id, ext: e.e || 'mp4', title: info.n || it.n, season: sn.s, ep: e.n, epTitle: e.t, mins: e.mins });
+  if (epId) { for (const sn of seasons) for (const e of sn.eps) if (e.id === epId) { await dlQueue(one(sn, e)); return dlRefresh(); } }
+  const m = listMenu('Download: ' + (info.n || it.n));
+  for (const sn of seasons) {
+    m.row(`Season ${sn.s}   (${sn.eps.length} episode${sn.eps.length === 1 ? '' : 's'})`, () => {
+      const sm = listMenu(`${info.n || it.n}, season ${sn.s}`);
+      sm.row(`All ${sn.eps.length} episodes`, async () => { let n = 0; for (const e of sn.eps) if (await dlQueue(one(sn, e), true)) n++; toast(`${n} episode${n === 1 ? '' : 's'} added to Downloads`, 3000); dlRefresh(); });
+      for (const e of sn.eps) sm.row(`${e.n}.  ${e.t || 'Episode ' + e.n}${e.mins ? '   ' + e.mins + ' min' : ''}`, async () => { await dlQueue(one(sn, e)); dlRefresh(); });
+      sm.finish();
+    }, true);
+  }
+  m.finish();
+}
+async function dlList() {
+  await dlRefresh();
+  const m = listMenu('Downloads');
+  if (!DL.ready) m.row('Downloads need a folder. An admin can map a share to /recordings.', () => {}, true);
+  else if (!DL.items.length) m.row('Nothing downloaded yet. Long-press (or Menu) on a movie or show, then choose Download.', () => {}, true);
+  for (const it of DL.items) {
+    const st = it.state === 'downloading' ? '   ' + (it.total ? Math.round((it.size / it.total) * 100) + '%  of ' + fmtSize(it.total) : fmtSize(it.size)) : it.state === 'waiting' ? '   waiting' : it.state === 'failed' ? '   failed' : it.state === 'stopped' ? '   stopped' : '   ' + fmtSize(it.size) + (it.pos > 30 && it.dur && it.pos < it.dur - 30 ? '   resume at ' + fmtDur(it.pos) : '');
+    m.row(it.title + st, () => dlMenu(it));
+  }
+  m.finish();
+}
+function dlMenu(it) {
+  let m; const list = [];
+  if (it.state === 'done') {
+    const part = it.pos > 30 && it.dur && it.pos < it.dur - 30;
+    if (part) list.push({ icon: '▶', label: 'Resume', sub: fmtDur(it.pos), act: () => { m.close(); dlPlay(it, it.pos); } });
+    list.push({ icon: part ? '↺' : '▶', label: part ? 'Start over' : 'Play', act: () => { m.close(); dlPlay(it, 0); } });
+    list.push({ icon: '🗑', label: 'Delete', act: () => { m.close(); dlDelete(it); } });
+  } else {
+    if (it.state === 'failed' || it.state === 'stopped') list.push({ icon: '↻', label: 'Try again', sub: it.err || '', act: async () => { m.close(); try { await send('/api/downloads/' + encodeURIComponent(it.id) + '/retry', {}, 'POST'); } catch (e) { toast(e.message, 4000); } dlRefresh(); } });
+    list.push({ icon: '✕', label: it.state === 'failed' || it.state === 'stopped' ? 'Remove' : 'Cancel download', act: () => { m.close(); dlDelete(it, true); } });
+  }
+  list.push({ icon: '⏎', label: 'Close', act: () => m.close() });
+  m = tiles(list);
+  m.root.append(el('div', 'fsmeta', it.title));
+}
+function dlDelete(it, cancel) {
+  let m;
+  m = tiles([{ icon: '🗑', label: cancel ? 'Yes, cancel it' : 'Delete for good', sub: cancel ? 'What came down is removed' : 'This can’t be undone', act: async () => { m.close(); try { await send('/api/downloads/' + encodeURIComponent(it.id), {}, 'DELETE'); toast(cancel ? 'Cancelled' : 'Deleted', 2000); } catch (e) { toast(e.message, 4000); } dlRefresh(); } }, { icon: '✕', label: 'Keep it', act: () => m.close() }]);
+  m.focus(mbs(m)[1]);
+  m.root.append(el('div', 'fsmeta', `${cancel ? 'Cancel' : 'Delete'} “${shortText(it.title, 40)}”?`));
+}
+function dlPlay(it, at) {
+  vodPlay({ pid: 'dl', k: 'dl', id: it.id, n: it.title, i: '', ext: (it.id.split('.').pop() || 'mp4'), ep: null, rec: 'dl', dur: it.dur, url: '/dl/' + encodeURIComponent(it.id) }, at || 0);
+}
+
+/* short OK in full screen: the Google TV remote has no pause key */
+function togglePause() {
+  if (S.needTap) { const p = video.play(); if (p && p.catch) p.catch(needTap); return; }
+  if (!S.playing && !S.starting) return pulseInfo();
+  if (video.paused) { const p = video.play(); if (p && p.catch) p.catch(needTap); if (!winding()) toast('Playing', 900); }
+  else { video.pause(); if (!winding()) toast('Paused', 900); }
+}
+
+/* ================= recordings =================
+   Recording copies the channel's rewind buffer on the server, so it can start in the past. The row of actions opens with Down while the
+   bar is showing (OK pauses, which brings the bar up). Finished recordings are listed under Recordings and play in the movie player. */
+const REC = { running: [], items: [], ready: false };
+const recKey = (c) => c && c.p + '-' + c.s;
+const recHere = () => REC.running.find((x) => x.key === recKey(S.current)) || null;
+async function recRefresh() {
+  if (!S.me || !S.me.rec) return;
+  try { const r = await api('/api/recordings'); REC.running = r.running || []; REC.items = r.items || []; REC.ready = !!r.ready; } catch (e) { if (e.status === 401) return location.reload(); }
+  paintRec();
+  if (T.nodes.length) renderTree();
+}
+function paintRec() {
+  const on = !!(fullscreen && recHere() && !S.vod);
+  $('#recbadge').hidden = !on;
+  if (on) $('#recbadge').textContent = '● REC  ' + fmtDur(recHere().dur);
+}
+setInterval(() => { if (REC.running.length) recRefresh(); }, 10000);
+async function recStart(back, until, title) {
+  const c = S.current; if (!c) return;
+  try { await send('/api/recordings', { p: c.p, s: c.s, back: Math.max(0, Math.round(back || 0)), until: until || 0, title: title || '' }, 'POST'); toast(until ? 'Recording this show' : 'Recording started', 2600); }
+  catch (e) { toast(e.message, 6000); }
+  await recRefresh();
+  if ($('#vbar').classList.contains('show')) paintBar(video.currentTime);
+}
+async function recStop() {
+  const c = S.current; if (!c) return;
+  try { await send('/api/recordings/stop', { p: c.p, s: c.s }, 'POST'); toast('Recording stopped. It is under Recordings in a moment.', 4000); } catch (e) { toast(e.message, 5000); }
+  await recRefresh();
+  setTimeout(recRefresh, 6000); // the file is finished a few seconds after the stop
+}
+function curProg() { // what the guide says is on this channel now, when it is known
+  const c = S.current; if (!c) return null;
+  const hit = G.cache.get(c.p + ':' + c.s), now = Date.now() / 1000;
+  return (hit && hit.v && hit.v.find((p) => p[0] <= now && now < p[1])) || null;
+}
+const shortText = (s, n) => (String(s || '').length > n ? String(s).slice(0, n - 1) + '…' : String(s || ''));
+/* the tiles for recording the channel on screen; `close` closes the menu they are shown in */
+function recTiles(close) {
+  const c = S.current, out = [];
+  if (!c || S.vod || !S.me || !S.me.rec || !S.rw) return out;
+  const here = recHere();
+  if (here) { out.push({ icon: '■', label: 'Stop recording', sub: fmtDur(here.dur), act: () => { close(); recStop(); } }); return out; }
+  const prog = curProg(), r = rng(), span = Math.max(0, r.hi - r.lo), now = Date.now() / 1000;
+  if (prog) {
+    const into = Math.min(span, Math.max(0, now - prog[0] + 15));
+    out.push({ icon: '●', label: 'Record this show', sub: shortText(prog[2] || 'Untitled', 22), act: () => { close(); recStart(into, prog[1] + 180, prog[2] || ''); } });
+  }
+  out.push({ icon: '●', label: 'Record from now', act: () => { close(); recStart(0, 0, prog ? prog[2] : ''); } });
+  if (span > 120) out.push({ icon: '⏮', label: 'Record all ' + fmtDur(span), sub: 'what is buffered', act: () => { close(); recStart(span, 0, prog ? prog[2] : ''); } });
+  return out;
+}
+function actionRow() { // Down while the bar is up
+  let m; const list = [];
+  const close = () => m.close();
+  if (video.paused) list.push({ icon: '▶', label: 'Resume', act: () => { close(); video.play(); } });
+  for (const t of recTiles(close)) list.push(t);
+  if (behindLive() > 5) list.push({ icon: '⏭', label: 'Go live', act: () => { close(); goLive(); } });
+  list.push({ icon: '☰', label: 'More', sub: 'favorite, recent', act: () => { close(); fsMenu(); } });
+  m = tiles(list, true);
+  if (S.current) m.root.append(el('div', 'fsmeta', S.current.n || ''));
+}
+const recWhen = (at) => { const d = new Date(at * 1000), t = new Date(), y = new Date(Date.now() - 864e5); const day = d.toDateString() === t.toDateString() ? 'Today' : d.toDateString() === y.toDateString() ? 'Yesterday' : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); return day + ' ' + fmtTime(at); };
+async function recList() {
+  await recRefresh();
+  const m = listMenu('Recordings');
+  if (!REC.ready) m.row('Recordings need a folder. An admin can map a share to /recordings.', () => {}, true);
+  else if (!REC.items.length) m.row('Nothing recorded yet. Pause live TV with OK, press Down, then choose Record.', () => {}, true);
+  for (const it of REC.items) {
+    const state = it.state === 'recording' ? '   ● recording' : it.state === 'finishing' ? '   finishing…' : it.state === 'unfinished' ? '   couldn’t be converted' : it.pos > 30 && it.pos < it.dur - 30 ? '   resume at ' + fmtDur(it.pos) : '';
+    m.row(`${it.title || it.ch}   ·   ${it.title ? it.ch + '   ·   ' : ''}${recWhen(it.at)}   ·   ${fmtDur(it.dur)}${state}`, () => recMenu(it));
+  }
+  m.finish();
+}
+function recMenu(it) {
+  let m; const list = [];
+  if (it.state === 'done') {
+    const part = it.pos > 30 && it.pos < it.dur - 30;
+    if (part) list.push({ icon: '▶', label: 'Resume', sub: fmtDur(it.pos), act: () => { m.close(); recPlay(it, it.pos); } });
+    list.push({ icon: part ? '↺' : '▶', label: part ? 'Start over' : 'Play', act: () => { m.close(); recPlay(it, 0); } });
+    list.push({ icon: '🗑', label: 'Delete', act: () => { m.close(); recDelete(it); } });
+  } else if (it.state === 'recording') {
+    const [p, s] = (() => { const k = it.key || ''; const i = k.lastIndexOf('-'); return [k.slice(0, i), k.slice(i + 1)]; })();
+    list.push({ icon: '■', label: 'Stop recording', act: async () => { m.close(); try { await send('/api/recordings/stop', { p, s }, 'POST'); toast('Stopped', 2000); } catch (e) { toast(e.message, 4000); } recRefresh(); setTimeout(recRefresh, 6000); } });
+  } else {
+    list.push({ icon: '⏳', label: it.state === 'unfinished' ? 'Couldn’t be converted' : 'Finishing…', sub: it.state === 'unfinished' ? 'the file is in the share' : '', act: () => m.close() });
+    if (it.state === 'unfinished') list.push({ icon: '🗑', label: 'Delete', act: () => { m.close(); recDelete(it); } });
+  }
+  list.push({ icon: '✕', label: 'Close', act: () => m.close() });
+  m = tiles(list);
+  m.root.append(el('div', 'fsmeta', `${it.title || it.ch}  ·  ${fmtDur(it.dur)}`));
+}
+function recDelete(it) {
+  let m;
+  m = tiles([{ icon: '🗑', label: 'Delete for good', sub: 'This can’t be undone', act: async () => { m.close(); try { await send('/api/recordings/' + encodeURIComponent(it.id), {}, 'DELETE'); toast('Deleted', 2000); } catch (e) { toast(e.message, 4000); } recRefresh(); } }, { icon: '✕', label: 'Keep it', act: () => m.close() }]);
+  m.focus(mbs(m)[1]);
+  m.root.append(el('div', 'fsmeta', `Delete “${shortText(it.title || it.ch, 40)}”?`));
+}
+function recPlay(it, at) { // a recording plays in the movie player: same seek bar, same keys
+  vodPlay({ pid: 'rec', k: 'rec', id: it.id, n: it.title || it.ch, i: '', ext: 'mp4', ep: null, rec: true, dur: it.dur, url: '/rec/' + encodeURIComponent(it.id) + '.mp4' }, at || 0);
+}
+
+/* ---------- search across every provider ---------- */
+/* Search in Movies & Shows: every provider that has movies, titles only */
+function sortSearch() {
+  const needle = V.lastQ.toLowerCase(), yr = (m) => parseInt(m.y, 10) || 0;
+  const rank = (m) => { const n = m.n.toLowerCase(); return n.startsWith(needle) ? 0 : n.includes(' ' + needle) ? 1 : 2; };
+  const by = { best: (a, b) => rank(a) - rank(b) || a.n.length - b.n.length, az: (a, b) => a.n.localeCompare(b.n), rating: (a, b) => b.r - a.r || a.n.localeCompare(b.n), year: (a, b) => yr(b) - yr(a) || a.n.localeCompare(b.n), new: (a, b) => b.a - a.a || a.n.localeCompare(b.n) };
+  V.items.sort(by[V.ssort] || by.best);
+}
+const sortable = () => S.mode === 'vod' && !!V.sel && (V.sel.k === 'list' || V.sel.k === 'search');
+function applySort(o) {
+  if (!sortable()) return;
+  if (V.sel.k === 'search') { V.ssort = o; V.i = 0; V.top = 0; V.cards.clear(); sortSearch(); paintWall(); return; }
+  V.sort = o;
+  try { localStorage.setItem('tv.vod.sort', V.sort); } catch (e) { /* not saved */ }
+  vodOpenList(V.sel);
+}
+function sortMenu() {
+  if (!sortable()) return;
+  const search = V.sel.k === 'search', cur = search ? V.ssort : V.sort;
+  const m = listMenu('Sort by'); let at = null;
+  for (const o of search ? ['best', 'new', 'az', 'rating', 'year'] : ['new', 'az', 'rating', 'year']) { const r = m.row((o === cur ? '✓   ' : '      ') + SORT_NAME[o], () => applySort(o)); if (o === cur) at = r; }
+  m.finish(); if (at) m.focus(at);
+}
+async function vodSearch() {
+  const ps = vodProvs();
+  if (!ps.length) return toast('No provider has movies');
+  const q = await osk({ title: 'Search movies and shows', value: V.lastQ, okLabel: 'Search', hint: 'Searches every provider that has movies and shows.' });
+  if (!q || !q.trim()) return;
+  V.lastQ = q.trim();
+  const seq = ++V.seq, enc = encodeURIComponent(V.lastQ);
+  V.sel = { k: 'search', q: V.lastQ, label: `Search: “${V.lastQ}”` }; V.items = []; V.total = 0; V.i = 0; V.top = 0; V.cards.clear(); V.more = false;
+  renderTree(); paintWall('Searching…');
+  const res = await Promise.all(ps.flatMap((p) => ['movie', 'show'].map((kind) =>
+    api(`/api/p/${p.id}/vod-list?kind=${kind}&q=${enc}&lim=60`).then((j) => j.items.map((m) => norm(p.id, kind, m))).catch(() => []))));
+  if (seq !== V.seq) return;
+  V.ssort = 'best'; V.items = [].concat(...res); sortSearch();
+  V.total = V.items.length;
+  paintWall();
+  if (V.items.length) setZone('guide');
+}
+
+function vodCardMenu() {
+  const it = V.items[V.i]; if (!it || it.clear) return;
+  const m = listMenu(it.n);
+  m.row(it.k === 'show' ? 'Details and episodes' : 'Details', () => vodShowDetail(it));
+  if (S.me && S.me.rec) m.row(it.k === 'show' ? 'Download episodes' : 'Download', () => dlAsk(it));
+  if (sortable()) m.row(`Sort: ${SORT_NAME[V.sel.k === 'search' ? V.ssort : V.sort]}`, () => sortMenu());
+  if (V.sel && V.sel.k === 'hist') m.row('Remove from history', () => { const a = vodHist.all().filter((x) => !sameTitle(x, it)); store.set(vodHist.key(), JSON.stringify(a)); vodOpenList({ k: 'hist' }); renderTree(); });
+  m.finish();
+}
+
+/* ================= start ================= */
+async function init() {
+  document.documentElement.classList.add('tv');
+  let me;
+  if (profiles.all().length >= 2 && !picked.get()) return showProfiles(); // more than one profile on this TV: ask who is watching
+  try { me = await api('/api/me'); }
+  catch (e) {
+    if (e.status === 401) return profiles.all().length ? showProfiles() : showGate();
+    $('#gate').hidden = false; $('#gateSub').textContent = 'Can’t reach the server. Retrying…'; return setTimeout(() => location.reload(), 5000);
+  }
+  S.me = me || {};
+  if (me && me.tv && me.name) api('/api/tv/token').then((t) => profiles.put(t.name, t.token)).catch(() => {}); // keep this profile (and refresh its token) for the start screen
+  if (me.mustChange) { $('#gate').hidden = false; $('#gateBox').replaceChildren(el('h1', '', 'Choose a new password first'), el('p', '', 'Open Zibbit on a phone or computer, sign in, and choose a new password. Then come back here.')); return; }
+  try { await Promise.all([loadScript('hls.min.js'), loadScript('mpegts.js')]); } catch { /* playback will say so */ }
+  let info;
+  try { info = await api('/api/providers'); } catch (e) { if (e.status === 401) return showGate(); toast(e.message); return; }
+  S.providers = info.providers;
+  $('#gate').hidden = true; $('#main').hidden = false; sizeCaptions();
+  document.documentElement.style.cursor = 'none';
+  if (!S.providers.length) { gmsg('No providers yet', 'Add one from Zibbit on a phone or computer.'); renderTree(); setZone('set'); return; }
+  const first = S.providers.find((p) => p.id === info.lastProvider) || S.providers[0];
+  S.pid = first.id;
+  S.open.add(first.id);
+  recRefresh(); dlRefresh();
+  renderTree();
+  const b = await ensureBoot(first.id);
+  let saved = null; try { saved = JSON.parse(store.get('tv.sel')); } catch { /* none */ }
+  let sel = null;
+  if (saved && S.providers.some((p) => p.id === saved.p)) {
+    if (saved.p !== first.id) { S.open.add(saved.p); ensureBoot(saved.p); }
+    sel = saved;
+  } else sel = { p: first.id, k: 'all' };
+  if (sel.k === 'grp' && (!bootOf(sel.p) || !bootOf(sel.p).cats || !bootOf(sel.p).cats.has(sel.id))) sel = { p: sel.p, k: 'all' };
+  if (sel.k === 'search') sel = { p: sel.p, k: 'all' };
+  if (b && !b.err && !b.groups.length && sel.k !== 'fav') { S.sel = sel; renderTree(); gmsg('Choose your groups', 'Open Settings, then Manage groups, and tick the groups you want to watch.'); setZone('side'); }
+  else await select(sel);
+  S.pid = sel.p;
+  // the last channel watched shows in the preview, ready to start with OK on it
+  if (info.last && info.last.p === sel.p) {
+    try {
+      const ch = await api(`/api/p/${info.last.p}/channel?s=${info.last.s}`);
+      if (!S.current) { S.current = { s: ch.s, n: ch.n, i: ch.i, p: info.last.p }; renderNow(); showOverlay('Last watched', ch.n); loadCurrentEpg(); }
+    } catch { /* channel may be gone */ }
+  }
+  setZone(S.items.length ? 'guide' : 'side');
+  setInterval(() => { if (S.items.length && S.sel && !MODALS.length) { layoutGuide(); renderGuide(); } }, 60000);
+}
+init();
+})();
+</script>
+</body>
+</html>

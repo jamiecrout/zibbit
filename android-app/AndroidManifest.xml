@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.zibbit"
+    android:versionCode="15"
+    android:versionName="3.0">
+
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
+
+    <!-- a TV has no touchscreen: without these the Play-style "needs a touchscreen" filter would hide the app on TVs -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- lets the app install its own update once the person allows it -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:label="Zibbit"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false"
+        android:hardwareAccelerated="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density|layoutDirection">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- How the app appears on an Android TV / Fire TV home screen. Only a TV launcher lists this entry,
+             so "Zibbit TV" and the banner show up on TVs and nowhere else. -->
+        <activity-alias
+            android:name=".TvLauncher"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="Zibbit TV"
+            android:icon="@mipmap/ic_launcher"
+            android:banner="@drawable/banner">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+    </application>
+</manifest>

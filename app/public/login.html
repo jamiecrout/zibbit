@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0c1118">
+<link rel="icon" type="image/png" href="/icons/favicon-64.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zibbit">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Sign in · Zibbit</title>
+<style>
+  :root { --ink:#0c1118; --panel:#131a24; --raised:#1b2432; --line:#28334a; --text:#e8ecf3; --mute:#8996ad; --tally:#ff4a3d; --warn:#ffb454; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: grid; place-items: center; padding: 16px; }
+  form { width: min(360px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
+  h1 { margin: 0 0 4px; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  h1 i { width: 10px; height: 10px; border-radius: 50%; background: var(--tally); display: inline-block; }
+  label { display: grid; gap: 6px; color: var(--mute); font-size: 14px; }
+  input { font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-height: 48px; }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--tally); outline-offset: 2px; }
+  button { font: inherit; font-weight: 600; min-height: 48px; border: 0; border-radius: 10px; background: var(--tally); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .6; }
+  #err { min-height: 1.4em; color: var(--warn); font-size: 14px; margin: 0; }
+</style>
+</head>
+<body>
+<form id="f" autocomplete="on">
+  <h1><i></i>Sign in</h1>
+  <label>Name <input id="name" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus></label>
+  <label>Password <input id="pw" name="password" type="password" autocomplete="current-password" required></label>
+  <p id="err" role="alert"></p>
+  <button id="go" type="submit">Sign in</button>
+</form>
+<script>
+// where to go after signing in: only a path on this site (the pairing page sends people back here)
+const dest = (() => { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/[A-Za-z0-9_\-][^\\]*$/.test(n) && !n.startsWith('//') ? n : '/'; })();
+(async () => {
+  try {
+    const r = await fetch('/api/me', { credentials: 'same-origin' });
+    if (r.ok) { const m = await r.json(); if (m.mode !== 'users' || m.name) location.replace(dest); }
+    else if (r.status !== 401) location.replace('/');
+  } catch {}
+})();
+const f = document.getElementById('f'), err = document.getElementById('err'), go = document.getElementById('go');
+f.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  err.textContent = ''; go.disabled = true;
+  try {
+    const r = await fetch('/api/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.getElementById('name').value.trim(), password: document.getElementById('pw').value }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) { location.replace(dest); return; }
+    err.textContent = j.error || 'Could not sign in.';
+  } catch { err.textContent = 'Could not reach the server. Check your connection and try again.'; }
+  go.disabled = false; document.getElementById('pw').select();
+});
+</script>
+</body>
+</html>

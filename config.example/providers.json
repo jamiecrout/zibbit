@@ -1,0 +1,6 @@
+{
+  "providers": [
+    { "id": "primary", "name": "Primary", "type": "xtream", "url": "http://provider-one.example:8080", "username": "USER", "password": "PASS", "format": "m3u8" },
+    { "id": "playlist", "name": "My playlist", "type": "m3u", "url": "https://playlist.example/list.m3u", "format": "m3u8" }
+  ]
+}

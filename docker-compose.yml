@@ -1,0 +1,22 @@
+# docker compose up -d
+# To build from this source tree instead of pulling the published image,
+# replace the "image:" line with "build: ." and run: docker compose up -d --build
+services:
+  zibbit:
+    image: ghcr.io/jamiecrout/zibbit:latest
+    container_name: zibbit
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      CONFIG_DIR: /config
+      # Optional (see docs/CONFIGURATION.md):
+      # ADMIN_INITIAL_PASSWORD: ""   # first-start password for "admin" (still changed at first sign-in)
+      # TRUST_IP_HEADER: "cf-connecting-ip"
+      # ZIBBIT_KEY: "a long random phrase"   # keeps the key that encrypts provider logins off the disk; read it under Admin settings > Security
+      # PUID: "1000"                 # the user and group the server runs as (it never runs as root); see docs/CONFIGURATION.md
+      # PGID: "1000"
+    volumes:
+      - ./config:/config
+      # - ./rewind:/rewind          # where the live-TV rewind buffer is kept; without it the container's own disk is used
+      # - ./recordings:/recordings  # where recordings are saved (a folder per profile); recording is off without it

@@ -1,0 +1,36 @@
+# Runtime config and secrets: never commit
+config/
+providers.json
+users.json
+settings.json
+secret.key
+recovery.key
+zibbit-backups/
+*.zbk
+state*.json
+epgmap.json
+cache/
+*.m3u
+*.m3u8
+*.tgz
+
+# Old hand-made backups
+*.bak
+*.before-*
+.backup-*/
+
+# ...except the example files
+!config.example/providers.json
+!config.example/settings.example.json
+
+# Author-only notes and deployment files: never commit
+notes/
+
+# Build output and release artifacts
+release/
+*.bundle
+*.apk
+*.idsig
+*.keystore
+keystore.pass
+android-app/build/

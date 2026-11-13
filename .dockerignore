@@ -1,0 +1,8 @@
+config/
+android-app/
+notes/
+docs/
+.git/
+*.tgz
+*.m3u
+*.m3u8

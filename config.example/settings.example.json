@@ -1,0 +1,12 @@
+{
+  "trustIpHeader": "x-real-ip",
+  "trimFromNames": "TV:,US:",
+  "stripSuperscripts": true,
+  "epg": { "primary": ["https://guide-1.example/xmltv.xml", "https://guide-2.example/xmltv.xml"] },
+  "epgRefreshHours": 12,
+  "epgNameMatch": true,
+  "lockUserFails": 5,
+  "lockIpFails": 20,
+  "lockMinutes": 10,
+  "adminAllow": ["203.0.113.0/24"]
+}
