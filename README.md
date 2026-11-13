@@ -24,7 +24,7 @@ container, no npm dependencies. Built for a car head unit (Android 13), phones a
 - **Guide fixes without editing files.** When a channel has no guide data, an admin can tell it to use
   another channel's listings, from the page.
 - **Touch-first.** Built for a portrait car screen, and just as at home on a phone, tablet or desktop browser.
-  An optional Android app keeps a list of servers and opens the one you choose.
+  An optional [Android app](https://github.com/jamiecrout/zibbit-android) keeps a list of servers and opens the one you choose, and has a big-screen mode for Android TV and Fire TV.
 - Everything is managed in the browser. Sign-in lockout (per /64 for IPv6), a limit on who can open Admin
   settings, forced password change at first sign-in, CSRF protection.
 
@@ -59,7 +59,7 @@ covers Docker Compose, Unraid, updating and the reverse proxy.
 | `docs/CONFIGURATION.md` | Roles, files, settings, environment variables, admin commands, security notes. |
 | `docs/UPGRADING.md` | Moving from 2.x or from v1. |
 | `docs/RELEASING.md` | What the version numbers and image tags mean, and how a release is made. |
-| `android-app/` | The Android app: a server list and a full-screen WebView (see its README). |
+| `android-app/` | The Android app's source: a server list and a full-screen WebView (see its README). Download the app from [zibbit-android](https://github.com/jamiecrout/zibbit-android). |
 | `CHANGELOG.md`, `THIRD-PARTY-NOTICES.md` | What changed, and licenses for the two bundled libraries. |
 | `tools/make-release.sh` | Builds a clean source archive (no keys, config or build output). |
 
