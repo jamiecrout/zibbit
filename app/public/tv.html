@@ -2451,7 +2451,10 @@ setInterval(() => {
   const r = rng(); let b = '';
   try { for (let i = 0; i < video.buffered.length; i++) b += `${Math.round(video.buffered.start(i))}-${Math.round(video.buffered.end(i))} `; } catch { /* none */ }
   noteFail(`picture frozen (try ${fz.tries + 1}): at ${Math.round(t)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${b.trim() || 'nothing'}, ready ${video.readyState}, ${video.videoWidth}x${video.videoHeight}`);
-  if (fz.tries === 0 && r.hi) { fz.tries = 1; seekWhy = 'freeze nudge'; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } fz.t = video.currentTime; fz.at = Date.now(); } // our own jump is not progress: remember where it aimed so the next check measures from there
+  /* Waiting at the live edge (the picture has used up everything the server has): the server has nothing newer to jump to, and stepping back to 3 s before its end only replays what was just seen.
+     Wait for the stream to come back; the restart below still follows if it does not. */
+  if (fz.tries === 0 && r.hi && r.hi - t <= 5) { fz.tries = 1; fz.t = t; fz.at = Date.now(); }
+  else if (fz.tries === 0 && r.hi) { fz.tries = 1; seekWhy = 'freeze nudge'; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } fz.t = video.currentTime; fz.at = Date.now(); } // our own jump is not progress: remember where it aimed so the next check measures from there // our own jump is not progress: remember where it aimed so the next check measures from there
   else if (fz.tries === 1) { fz.tries = 2; const c = S.current; if (c) startPlay({ s: c.s, n: c.n, i: c.i }); }
   else { fz.tries = 3; fail('This channel isn’t responding'); }
 }, 2000);
