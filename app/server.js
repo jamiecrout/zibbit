@@ -1044,6 +1044,15 @@ async function maxConnections(p) {
 }
 
 const limitNoted = new Map();
+/* For a segment the provider listed under two addresses (two of its servers): the first address is what the player is given (so its list stays steady),
+ * and the other addresses are remembered here, so that if the first server fails or does not have that segment yet, the other one is tried before the player sees an error. */
+const segAlts = new Map(); // first address -> [other addresses]
+function noteSegAlt(first, other) {
+  if (!first || !other || first === other) return;
+  let l = segAlts.get(first);
+  if (!l) { if (segAlts.size >= 4000) for (const k of [...segAlts.keys()].slice(0, 1000)) segAlts.delete(k); l = []; segAlts.set(first, l); }
+  if (!l.includes(other) && l.length < 3) l.push(other);
+}
 const rewindBad = new Map(); // "provider-channel" -> when buffering it failed; direct playback is used for 10 minutes
 setInterval(() => { const now = Date.now(); for (const [k, at] of rewindBad) if (now - at > 600000) rewindBad.delete(k); }, 60000).unref();
 function rewritePlaylist(text, baseUrl, meta, ss) {
@@ -1082,6 +1091,7 @@ function rewritePlaylist(text, baseUrl, meta, ss) {
       if (had !== w) {
         if (!ss.pinned) { const pv = providers.get(meta.p); console.log(`[zibbit] ${new Date().toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} lists one segment under different addresses; keeping the first so playback stays steady`); }
         ss.pinned = (ss.pinned || 0) + 1;
+        if (rawU && rawMap.get(n)) noteSegAlt(rawMap.get(n).href, rawU.href);
         /* diagnostic: how the two addresses differ (never the login: only the host names, the file names, and whether the rest differs) */
         if (ss.pinned <= 6 || ss.pinned % 100 === 0) {
           try {
@@ -1262,6 +1272,7 @@ async function guardedFetch(url, opts) {
   throw new Error('too many redirects');
 }
 
+let segAltUsed = 0;
 const refused = new Map(); // provider|channel -> { until, status }: when a 403 or 429 was last seen
 async function pipeUpstream(req, res, url, meta) {
   const ac = new AbortController();
@@ -1277,7 +1288,32 @@ async function pipeUpstream(req, res, url, meta) {
        several times a second does not get in, and only looks like hammering to the provider */
     const dk = meta.s && meta.k !== 'vod' ? meta.p + '|' + meta.s : null, dn = dk && refused.get(dk);
     if (dn && dn.until > t0) { done(); res.writeHead(dn.status, { 'Content-Type': 'text/plain', 'Retry-After': String(Math.ceil((dn.until - t0) / 1000)) }); return res.end('the provider refused this channel a moment ago'); }
-    const r = await guardedFetch(url, { headers, signal: ac.signal });
+    let r = null, firstErr = null;
+    const alts = meta.k !== 'icon' && meta.k !== 'vod' ? segAlts.get(url) : null;
+    try { r = await guardedFetch(url, { headers, signal: ac.signal }); } catch (e) { if (!alts || e.name === 'AbortError' || res.destroyed || e.refused) throw e; firstErr = e; }
+    if (alts && (!r || !r.ok)) {
+      /* the first server failed or lacks this segment: the same segment, as another of the provider's servers lists it */
+      const why = r ? 'HTTP ' + r.status : cleanErr(firstErr);
+      for (const alt of alts) {
+        try {
+          const r2 = await guardedFetch(alt, { headers, signal: ac.signal });
+          if (r2.ok) {
+            if (r) { try { await r.body?.cancel(); } catch { /* closed */ } }
+            r = r2; firstErr = null;
+            const pv = providers.get(meta.p), key = 'alt:' + meta.p;
+            segAltUsed++;
+            if (Date.now() - (limitNoted.get(key) || 0) > 30000) {
+              limitNoted.set(key, Date.now());
+              let h1 = '?', h2 = '?'; try { h1 = new URL(url).host; h2 = new URL(alt).host; } catch { /* odd address */ }
+              console.log(`[zibbit] ${new Date().toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s}: ${h1} failed for a segment (${why}); got it from ${h2} instead (${segAltUsed} so far)`);
+            }
+            break;
+          }
+          try { await r2.body?.cancel(); } catch { /* closed */ }
+        } catch (e2) { if (e2.name === 'AbortError' || res.destroyed) throw e2; }
+      }
+    }
+    if (!r) throw firstErr;
     const ct = r.headers.get('content-type') || '';
     const finalUrl = r.finalUrl || r.url || url;
     /* a live request the provider was slow to start answering is worth a line (at most one per provider every 30 s), so slow channels can be told apart from a slow link */
