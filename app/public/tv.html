@@ -2424,16 +2424,16 @@ function ranges(tr) { let o = ''; try { for (let i = 0; i < tr.length; i++) o +=
 function noteJump(kind, from, to) {
   const now = Date.now(); if (now - jl.sent < 2000) return; jl.sent = now;
   const r = rng();
-  noteFail(`jump (${kind}${seekWhy ? ', ' + seekWhy : ', by the player'}): ${Math.round(from)}s -> ${Math.round(to)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, rate ${video.playbackRate}`);
+  noteFail(`jump (${kind}${seekWhy ? ', ' + seekWhy : ', by the player'}, ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}): ${Math.round(from)}s -> ${Math.round(to)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, rate ${video.playbackRate}`);
 }
 video.addEventListener('seeking', () => {
-  if (S.rw && !S.vod && S.playing && Math.abs(video.currentTime - jl.t) > 1.5) noteJump('seek', jl.t, video.currentTime);
+  if (!S.vod && S.playing && Math.abs(video.currentTime - jl.t) > 1.5) noteJump('seek', jl.t, video.currentTime);
   seekWhy = '';
 });
 video.addEventListener('timeupdate', () => {
   const t = video.currentTime, now = Date.now();
   // time that passed on the clock since the last update bounds how far the picture can honestly have moved
-  if (S.rw && !S.vod && S.playing && !video.seeking && !video.paused && jl.at && t - jl.t > (now - jl.at) / 1000 * video.playbackRate + 1.5) noteJump('silent', jl.t, t);
+  if (!S.vod && S.playing && !video.seeking && !video.paused && jl.at && t - jl.t > (now - jl.at) / 1000 * video.playbackRate + 1.5) noteJump('silent', jl.t, t);
   jl.t = t; jl.at = video.paused ? 0 : now;
 });
 /* A buffered channel that is "playing" but whose picture has not moved: say what the player sees, nudge it to live, then start the channel over, then give up */
