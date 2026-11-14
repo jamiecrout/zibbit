@@ -1061,9 +1061,9 @@ function rewritePlaylist(text, baseUrl, meta, ss) {
    * differently, so one sequence number can come back with two different URLs. Pin the first URL
    * seen for each number for this viewing session so the player always sees a consistent list. */
   const m = /#EXT-X-MEDIA-SEQUENCE:(\d+)/.exec(text);
-  const pin = ss && m && /#EXTINF/.test(text) ? (ss.segPin || (ss.segPin = new Map())) : null;
+  const pin = PIN_SEGMENTS && ss && m && /#EXTINF/.test(text) ? (ss.segPin || (ss.segPin = new Map())) : null;
   let seq = m ? parseInt(m[1], 10) : 0;
-  if (pin) { if (ss.segLast !== undefined && seq < ss.segLast - 5) pin.clear(); ss.segLast = seq; } // the numbering restarted: old pins no longer apply
+  if (pin) { if (ss.segLast !== undefined && seq < ss.segLast - 5) { pin.clear(); if (ss.segPinU) ss.segPinU.clear(); } ss.segLast = seq; } // the numbering restarted: old pins no longer apply
   let after = '';
   const out = text.split(/\r?\n/).map((line) => {
     if (!line.trim()) return line;
@@ -1076,23 +1076,36 @@ function rewritePlaylist(text, baseUrl, meta, ss) {
     if (!pin) return w;
     const n = seq++;
     const had = pin.get(n);
+    const rawU = (() => { try { return new URL(line.trim(), baseUrl); } catch { return null; } })();
+    const rawMap = ss.segPinU || (ss.segPinU = new Map());
     if (had) {
       if (had !== w) {
         if (!ss.pinned) { const pv = providers.get(meta.p); console.log(`[zibbit] ${new Date().toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} lists one segment under different addresses; keeping the first so playback stays steady`); }
         ss.pinned = (ss.pinned || 0) + 1;
+        /* diagnostic: how the two addresses differ (never the login: only the host names, the file names, and whether the rest differs) */
+        if (ss.pinned <= 6 || ss.pinned % 100 === 0) {
+          try {
+            const o = rawMap.get(n), base = (u) => decodeURIComponent(u.pathname.split('/').pop() || '');
+            const pv = providers.get(meta.p);
+            console.log(`[zibbit] ${pv ? pv.name : meta.p}: channel ${meta.s} segment ${n} (#${ss.pinned} this session): first ${o ? o.host : '?'} ${o ? base(o) : '?'}, now ${rawU ? rawU.host : '?'} ${rawU ? base(rawU) : '?'}; ${o && rawU ? (o.host === rawU.host ? 'same host' : 'different host') + ', ' + (o.pathname === rawU.pathname ? 'same path' : 'different path') + ', ' + (o.search === rawU.search ? 'same query' : 'different query') : ''}; list starts at ${m ? m[1] : '?'}`);
+          } catch { /* diagnostics only */ }
+        }
       }
       return had;
     }
     pin.set(n, w);
+    if (rawU) rawMap.set(n, rawU);
     return w;
   }).join('\n');
-  if (pin) for (const k of pin.keys()) { if (k < seq - 60) pin.delete(k); else break; }
+  if (pin) for (const k of pin.keys()) { if (k < seq - 60) { pin.delete(k); if (ss.segPinU) ss.segPinU.delete(k); } else break; }
   return out;
 }
 
 /* ---------- app updates: the Android app asks this server whether a newer app exists ---------- */
 /* The APK is never part of the image. It is read from a public folder (default: the zibbit-android repo), so publishing an
    update there is all it takes; this server checks it at most every 5 minutes and passes the file through. */
+/* set PIN_SEGMENTS=0 to stop keeping the first address for each segment number (to find out whether that is what makes a picture skip) */
+const PIN_SEGMENTS = !/^(0|false|no|off)$/i.test(String(process.env.PIN_SEGMENTS || ''));
 const APP_BASE = (process.env.APP_UPDATE_URL || 'https://raw.githubusercontent.com/jamiecrout/zibbit-android/main/').replace(/\/*$/, '/');
 const APP_CHANNEL = (process.env.APP_UPDATE_CHANNEL != null ? process.env.APP_UPDATE_CHANNEL : (() => { try { return fs.readFileSync(path.join(__dirname, 'update-channel.txt'), 'utf8'); } catch { return ''; } })()).trim().replace(/^\/+|\/+$/g, '');
 const appUpd = { at: 0, j: null };

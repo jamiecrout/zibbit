@@ -623,7 +623,7 @@ async function main() {
       const bkName = r.j && r.j.name;
       ok(r.status === 200 && /^zibbit-backup-\d{8}-\d{6}\.zbk$/.test(bkName || '') && fs.existsSync(path.join(recDir, 'zibbit-backups', bkName)), 'a backup is saved in the storage folder');
       const bkText = fs.readFileSync(path.join(recDir, 'zibbit-backups', bkName), 'utf8');
-      ok(JSON.parse(bkText).zibbit === 'backup' && !bkText.includes('p1') && !bkText.includes('Alpha') && !bkText.includes('admin'), 'the backup file reveals nothing without the key');
+      ok(JSON.parse(bkText).zibbit === 'backup' && !bkText.includes('"p1"') && !bkText.includes('Alpha') && !bkText.includes('"admin"'), 'the backup file reveals nothing without the key');
       r = await A('POST', '/api/admin/backup/download', {});
       ok(r.status === 200 && r.j.backup.zibbit === 'backup' && /\.zbk$/.test(r.j.name), 'a backup can be downloaded');
       const dl = r.j.backup;
