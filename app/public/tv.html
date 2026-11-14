@@ -2418,6 +2418,24 @@ function paintBar(t) {
   // no time-behind-live count: the bar's fill already shows where you are in the buffer
   $('span', bar).textContent = [rc ? '●  REC ' + fmtDur(rc.dur) : '', SC.active ? (SC.dir > 0 ? '▶▶' : '◀◀') : video.paused ? '❚❚  Paused' : '', S.me && S.me.rec ? '▼ Record and more' : ''].filter(Boolean).join('   ·   ');
 }
+/* Diagnostic: a live picture that jumps by more than a moment is logged with where it was, where it went and what was loaded, and whether we asked for it (go live, skip, scrub) or the player did on its own */
+let seekWhy = '', jl = { t: 0, at: 0, sent: 0 };
+function ranges(tr) { let o = ''; try { for (let i = 0; i < tr.length; i++) o += `${Math.round(tr.start(i))}-${Math.round(tr.end(i))} `; } catch { /* none */ } return o.trim() || 'none'; }
+function noteJump(kind, from, to) {
+  const now = Date.now(); if (now - jl.sent < 2000) return; jl.sent = now;
+  const r = rng();
+  noteFail(`jump (${kind}${seekWhy ? ', ' + seekWhy : ', by the player'}): ${Math.round(from)}s -> ${Math.round(to)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, rate ${video.playbackRate}`);
+}
+video.addEventListener('seeking', () => {
+  if (S.rw && !S.vod && S.playing && Math.abs(video.currentTime - jl.t) > 1.5) noteJump('seek', jl.t, video.currentTime);
+  seekWhy = '';
+});
+video.addEventListener('timeupdate', () => {
+  const t = video.currentTime, now = Date.now();
+  // time that passed on the clock since the last update bounds how far the picture can honestly have moved
+  if (S.rw && !S.vod && S.playing && !video.seeking && !video.paused && jl.at && t - jl.t > (now - jl.at) / 1000 * video.playbackRate + 1.5) noteJump('silent', jl.t, t);
+  jl.t = t; jl.at = video.paused ? 0 : now;
+});
 /* A buffered channel that is "playing" but whose picture has not moved: say what the player sees, nudge it to live, then start the channel over, then give up */
 let fz = { t: -1, at: 0, tries: 0, cur: '' };
 setInterval(() => {
@@ -2433,7 +2451,7 @@ setInterval(() => {
   const r = rng(); let b = '';
   try { for (let i = 0; i < video.buffered.length; i++) b += `${Math.round(video.buffered.start(i))}-${Math.round(video.buffered.end(i))} `; } catch { /* none */ }
   noteFail(`picture frozen (try ${fz.tries + 1}): at ${Math.round(t)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${b.trim() || 'nothing'}, ready ${video.readyState}, ${video.videoWidth}x${video.videoHeight}`);
-  if (fz.tries === 0 && r.hi) { fz.tries = 1; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } fz.t = video.currentTime; fz.at = Date.now(); } // our own jump is not progress: remember where it aimed so the next check measures from there
+  if (fz.tries === 0 && r.hi) { fz.tries = 1; seekWhy = 'freeze nudge'; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } fz.t = video.currentTime; fz.at = Date.now(); } // our own jump is not progress: remember where it aimed so the next check measures from there
   else if (fz.tries === 1) { fz.tries = 2; const c = S.current; if (c) startPlay({ s: c.s, n: c.n, i: c.i }); }
   else { fz.tries = 3; fail('This channel isn’t responding'); }
 }, 2000);
@@ -2450,9 +2468,9 @@ function vodSkip(sec) {
   let to = video.currentTime + sec;
   if (live && sec > 0 && to >= r.hi - 4) to = r.hi - 1; // close to the edge: that is live
   to = Math.max(r.lo + (live ? 1 : 0), Math.min(live ? r.hi - 1 : r.hi - 2, to));
-  video.currentTime = to; pulseBar(); toast((sec > 0 ? '+' : '−') + Math.abs(sec) + ' s', 900);
+  seekWhy = 'skip'; video.currentTime = to; pulseBar(); toast((sec > 0 ? '+' : '−') + Math.abs(sec) + ' s', 900);
 }
-function goLive() { const r = rng(); if (r.hi) { video.currentTime = Math.max(r.lo, r.hi - 1); if (video.paused) video.play().catch(() => {}); pulseBar(); toast('Live', 900); } }
+function goLive() { const r = rng(); if (r.hi) { seekWhy = 'go live'; video.currentTime = Math.max(r.lo, r.hi - 1); if (video.paused) video.play().catch(() => {}); pulseBar(); toast('Live', 900); } }
 function scrubTick() {
   const r = rng(), held = (Date.now() - SC.t0 - 400) / 1000, live = !S.vod;
   SC.target = Math.max(r.lo, Math.min(live ? r.hi - 1 : Math.max(0, r.hi - 2), SC.target + SC.dir * (60 + Math.min(held, 6) * 60) * 0.1));
