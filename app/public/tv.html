@@ -1205,6 +1205,7 @@ function layoutGuide() {
   G.visW = Math.max(300, r.width - chan);
   const now = Date.now() / 1000;
   const oldStart = G.start;
+  if (G.gt < now) G.gt = now; // the cursor's time follows the clock: a guide left open for hours must not keep it on a programme that has scrolled out of the window (it would be selected but never drawn)
   G.start = Math.floor((now - 3600) / 1800) * 1800;
   G.end = G.start + 24 * 3600;
   G.ppm = G.visW / 180; // about three hours across
