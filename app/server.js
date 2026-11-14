@@ -1044,78 +1044,70 @@ async function maxConnections(p) {
 }
 
 const limitNoted = new Map();
-/* For a segment the provider listed under two addresses (two of its servers): the first address is what the player is given (so its list stays steady),
- * and the other addresses are remembered here, so that if the first server fails or does not have that segment yet, the other one is tried before the player sees an error. */
-const segAlts = new Map(); // first address -> [other addresses]
-function noteSegAlt(first, other) {
-  if (!first || !other || first === other) return;
-  let l = segAlts.get(first);
-  if (!l) { if (segAlts.size >= 4000) for (const k of [...segAlts.keys()].slice(0, 1000)) segAlts.delete(k); l = []; segAlts.set(first, l); }
-  if (!l.includes(other) && l.length < 3) l.push(other);
-}
 const rewindBad = new Map(); // "provider-channel" -> when buffering it failed; direct playback is used for 10 minutes
 setInterval(() => { const now = Date.now(); for (const [k, at] of rewindBad) if (now - at > 600000) rewindBad.delete(k); }, 60000).unref();
-function rewritePlaylist(text, baseUrl, meta, ss) {
+/* A provider behind a balancer lists the same segment from different servers on different reloads: the same file name, but another host and path.
+ * The player must see one address for it every time (or hls.js reports "media sequence mismatch" and stops), so a segment is named to the player by
+ * its provider, channel and file name only. Where it really lives is remembered here, newest listing first, and looked up when the player asks for it:
+ * the server that listed it last is asked first, and the other is tried if that one fails or does not have it yet. */
+const segSrc = new Map(); // "provider|channel|file name" -> { urls: [newest first], at }
+setInterval(() => { const old = Date.now() - 600000; for (const [k, v] of segSrc) if (v.at < old) segSrc.delete(k); }, 60000).unref();
+const segFile = (u) => { try { return decodeURIComponent(u.pathname.split('/').pop() || ''); } catch { return ''; } };
+const segUrls = (t) => { const e = segSrc.get(`${t.p}|${t.s}|${t.f}`); return e ? e.urls : null; };
+const multiNoted = new Map();
+function rewritePlaylist(text, baseUrl, meta) {
   /* the addresses the rewind buffer's ffmpeg is given end in .ts / .m3u8 / .mp4, because newer ffmpeg refuses HLS segments that have no
    * recognisable file extension (the extension is only a label; the server looks the real address up from the sealed part) */
   const wrap = (u, ext) => {
-    // deterministic: a rolling live playlist must show the same URL for the same segment on every
-    // reload, or hls.js reports "media sequence mismatch" and the stream stops after a few seconds
+    // deterministic: a rolling live playlist must show the same URL for the same segment on every reload
     try {
       if (meta.k === 'ingest') return '/__ingest/' + seal({ u: new URL(u, baseUrl).href, p: meta.p, s: meta.s, k: 'ingest' }, true) + (ext || '');
       return '/x/' + seal({ u: new URL(u, baseUrl).href, p: meta.p, s: meta.s, c: meta.c }, true);
     } catch { return u; }
   };
-  /* Some providers sit behind a balancer whose servers number the same segment alike but name it
-   * differently, so one sequence number can come back with two different URLs. Pin the first URL
-   * seen for each number for this viewing session so the player always sees a consistent list. */
-  const m = /#EXT-X-MEDIA-SEQUENCE:(\d+)/.exec(text);
-  const pin = PIN_SEGMENTS && ss && m && /#EXTINF/.test(text) ? (ss.segPin || (ss.segPin = new Map())) : null;
-  let seq = m ? parseInt(m[1], 10) : 0;
-  if (pin) { if (ss.segLast !== undefined && seq < ss.segLast - 5) { pin.clear(); if (ss.segPinU) ss.segPinU.clear(); } ss.segLast = seq; } // the numbering restarted: old pins no longer apply
-  let after = '';
-  const out = text.split(/\r?\n/).map((line) => {
+  const lines = text.split(/\r?\n/);
+  /* segments are named by file name when every one in this list has its own; otherwise each keeps its full address */
+  const segs = []; let prevInf = false;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (line.startsWith('#')) { if (/^#EXTINF/.test(line)) prevInf = true; continue; }
+    if (prevInf) { try { segs.push(new URL(line.trim(), baseUrl)); } catch { segs.push(null); } prevInf = false; }
+  }
+  const names = segs.map((u) => (u ? segFile(u) : ''));
+  const byName = meta.s && segs.length > 0 && names.every(Boolean) && new Set(names).size === names.length;
+  const now = Date.now(); let si = 0, inf = false, after = '';
+  return lines.map((line) => {
     if (!line.trim()) return line;
     if (line.startsWith('#')) {
+      if (/^#EXTINF/.test(line)) inf = true;
       after = /^#EXT-X-(STREAM-INF|I-FRAME-STREAM-INF)/.test(line) ? '.m3u8' : /^#EXTINF/.test(line) ? '.ts' : after;
       const e = /^#EXT-X-MEDIA:/.test(line) ? '.m3u8' : /^#EXT-X-MAP:/.test(line) ? '.mp4' : /^#EXT-X-I-FRAME-STREAM-INF/.test(line) ? '.m3u8' : '';
       return line.replace(/URI="([^"]+)"/g, (_, u) => `URI="${wrap(u, e)}"`);
     }
-    const w = wrap(line.trim(), after);
-    if (!pin) return w;
-    const n = seq++;
-    const had = pin.get(n);
-    const rawU = (() => { try { return new URL(line.trim(), baseUrl); } catch { return null; } })();
-    const rawMap = ss.segPinU || (ss.segPinU = new Map());
-    if (had) {
-      if (had !== w) {
-        if (!ss.pinned) { const pv = providers.get(meta.p); console.log(`[zibbit] ${new Date().toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} lists one segment under different addresses; keeping the first so playback stays steady`); }
-        ss.pinned = (ss.pinned || 0) + 1;
-        if (rawU && rawMap.get(n)) noteSegAlt(rawMap.get(n).href, rawU.href);
-        /* diagnostic: how the two addresses differ (never the login: only the host names, the file names, and whether the rest differs) */
-        if (ss.pinned <= 6 || ss.pinned % 100 === 0) {
-          try {
-            const o = rawMap.get(n), base = (u) => decodeURIComponent(u.pathname.split('/').pop() || '');
-            const pv = providers.get(meta.p);
-            console.log(`[zibbit] ${pv ? pv.name : meta.p}: channel ${meta.s} segment ${n} (#${ss.pinned} this session): first ${o ? o.host : '?'} ${o ? base(o) : '?'}, now ${rawU ? rawU.host : '?'} ${rawU ? base(rawU) : '?'}; ${o && rawU ? (o.host === rawU.host ? 'same host' : 'different host') + ', ' + (o.pathname === rawU.pathname ? 'same path' : 'different path') + ', ' + (o.search === rawU.search ? 'same query' : 'different query') : ''}; list starts at ${m ? m[1] : '?'}`);
-          } catch { /* diagnostics only */ }
-        }
+    if (!inf) return wrap(line.trim(), after);
+    inf = false;
+    const raw = segs[si], f = names[si]; si++;
+    if (!byName || !raw) return wrap(line.trim(), after);
+    const key = `${meta.p}|${meta.s}|${f}`;
+    let e = segSrc.get(key);
+    if (!e) { if (segSrc.size >= 20000) segSrc.clear(); e = { urls: [], at: now }; segSrc.set(key, e); }
+    e.at = now;
+    if (e.urls[0] !== raw.href) {
+      e.urls = [raw.href, ...e.urls.filter((x) => x !== raw.href)].slice(0, 3);
+      if (e.urls.length > 1 && now - (multiNoted.get(meta.p + '|' + meta.s) || 0) > 600000) { // say it once in a while: the provider answers from more than one server
+        multiNoted.set(meta.p + '|' + meta.s, now); if (multiNoted.size > 500) multiNoted.clear();
+        const pv = providers.get(meta.p), hosts = [...new Set(e.urls.map((x) => { try { return new URL(x).host; } catch { return '?'; } }))];
+        console.log(`[zibbit] ${new Date(now).toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} lists its segments from more than one server (${hosts.join(', ')}); each is fetched from the server that listed it last, the other is the fallback`);
       }
-      return had;
     }
-    pin.set(n, w);
-    if (rawU) rawMap.set(n, rawU);
-    return w;
+    const tok = seal({ k: meta.k === 'ingest' ? 'ingest' : 'seg', p: meta.p, s: meta.s, c: meta.k === 'ingest' ? undefined : meta.c, f }, true);
+    return meta.k === 'ingest' ? '/__ingest/' + tok + (after || '') : '/x/' + tok;
   }).join('\n');
-  if (pin) for (const k of pin.keys()) { if (k < seq - 60) { pin.delete(k); if (ss.segPinU) ss.segPinU.delete(k); } else break; }
-  return out;
 }
 
 /* ---------- app updates: the Android app asks this server whether a newer app exists ---------- */
 /* The APK is never part of the image. It is read from a public folder (default: the zibbit-android repo), so publishing an
    update there is all it takes; this server checks it at most every 5 minutes and passes the file through. */
-/* set PIN_SEGMENTS=0 to stop keeping the first address for each segment number (to find out whether that is what makes a picture skip) */
-const PIN_SEGMENTS = !/^(0|false|no|off)$/i.test(String(process.env.PIN_SEGMENTS || ''));
 const APP_BASE = (process.env.APP_UPDATE_URL || 'https://raw.githubusercontent.com/jamiecrout/zibbit-android/main/').replace(/\/*$/, '/');
 const APP_CHANNEL = (process.env.APP_UPDATE_CHANNEL != null ? process.env.APP_UPDATE_CHANNEL : (() => { try { return fs.readFileSync(path.join(__dirname, 'update-channel.txt'), 'utf8'); } catch { return ''; } })()).trim().replace(/^\/+|\/+$/g, '');
 const appUpd = { at: 0, j: null };
@@ -1289,7 +1281,7 @@ async function pipeUpstream(req, res, url, meta) {
     const dk = meta.s && meta.k !== 'vod' ? meta.p + '|' + meta.s : null, dn = dk && refused.get(dk);
     if (dn && dn.until > t0) { done(); res.writeHead(dn.status, { 'Content-Type': 'text/plain', 'Retry-After': String(Math.ceil((dn.until - t0) / 1000)) }); return res.end('the provider refused this channel a moment ago'); }
     let r = null, firstErr = null;
-    const alts = meta.k !== 'icon' && meta.k !== 'vod' ? segAlts.get(url) : null;
+    const alts = meta.alts && meta.alts.length ? meta.alts : null;
     try { r = await guardedFetch(url, { headers, signal: ac.signal }); } catch (e) { if (!alts || e.name === 'AbortError' || res.destroyed || e.refused) throw e; firstErr = e; }
     if (alts && (!r || !r.ok)) {
       /* the first server failed or lacks this segment: the same segment, as another of the provider's servers lists it */
@@ -1345,7 +1337,7 @@ async function pipeUpstream(req, res, url, meta) {
       const text = await r.text();
       if (text.trimStart().startsWith('#EXTM3U')) {
         res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
-        return res.end(rewritePlaylist(text, finalUrl, meta, ss));
+        return res.end(rewritePlaylist(text, finalUrl, meta));
       }
       res.writeHead(r.status, { 'Content-Type': ct || 'text/plain' });
       return res.end(text);
@@ -2601,7 +2593,9 @@ async function route(req, res) {
   if (pn.startsWith('/__ingest/')) {
     const ra = req.socket.remoteAddress || '';
     const t = req.method === 'GET' && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(ra) && !req.headers['x-forwarded-for'] && !req.headers.forwarded ? unseal(pn.slice(10).replace(/\.[a-z0-9]{1,5}$/, '')) : null;
-    if (!t || t.k !== 'ingest' || !/^https?:\/\//i.test(t.u || '')) { res.writeHead(404); return res.end('not found'); }
+    if (!t || t.k !== 'ingest') { res.writeHead(404); return res.end('not found'); }
+    if (t.f) { const l = segUrls(t); if (!l) { res.writeHead(404); return res.end('not listed (any more)'); } return pipeUpstream(req, res, l[0], { p: t.p, s: t.s, k: 'ingest', alts: l.slice(1) }); }
+    if (!/^https?:\/\//i.test(t.u || '')) { res.writeHead(404); return res.end('not found'); }
     return pipeUpstream(req, res, t.u, { p: t.p, s: t.s, k: 'ingest' });
   }
   if (mode === 'basic') {
@@ -2636,10 +2630,12 @@ async function route(req, res) {
   let m = pn.match(/^\/x\/([A-Za-z0-9_-]+)$/);
   if (m) {
     const t = unseal(m[1]);
-    if (!t || !t.u || !/^https?:\/\//i.test(t.u)) { res.writeHead(400); return res.end('bad token'); }
+    const l = t && t.f ? segUrls(t) : null; // a segment named by file name: where it lives is looked up
+    if (t && t.f && !l) { res.writeHead(404); return res.end('not listed (any more)'); }
+    if (!t || !(l || (t.u && /^https?:\/\//i.test(t.u)))) { res.writeHead(400); return res.end('bad token'); }
     if (t.s && evicted.has([uname, t.c || '', t.p].join('|'))) return json(res, 410, { error: 'taken over' });
     if (ADULT_ON && user && t.k !== 'icon') unlocks.touch(devKey(req), user.name);
-    return pipeUpstream(req, res, t.u, { p: t.p, s: t.s, k: t.k, c: t.c, u: uname });
+    return pipeUpstream(req, res, l ? l[0] : t.u, { p: t.p, s: t.s, k: l ? undefined : t.k, c: t.c, u: uname, alts: l ? l.slice(1) : undefined });
   }
 
   /* movie and episode files, passed through with range requests so the player can seek */

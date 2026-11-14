@@ -118,6 +118,10 @@ function mock() {
     if (u.pathname.startsWith('/s/')) { res.writeHead(200, { 'Content-Type': 'video/mp2t' }); return res.end('TSDATA'); }
     if (u.pathname === '/live/u1/p1/7001.m3u8') { res.writeHead(302, { Location: `http://localhost:${srv.address().port}/secret.txt` }); return res.end(); } // a redirect to another name for this machine
     if (u.pathname === '/live/u1/p1/7002.m3u8') { res.writeHead(302, { Location: `http://127.0.0.1:${srv.address().port}/s/gamma.m3u8` }); return res.end(); } // a redirect that stays on the provider
+    /* a provider behind a balancer: each reload of the list comes from the other server (another folder), and the newest one does not have the first segment yet */
+    if (u.pathname === '/live/u1/p1/7010.m3u8') { const d = (srv.flip = (srv.flip || 0) + 1) % 2 ? 'srvA' : 'srvB'; res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' }); return res.end(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:100\n#EXTINF:4,\n${d}/seg100.ts\n#EXTINF:4,\n${d}/seg101.ts\n`); }
+    if (u.pathname === '/live/u1/p1/srvB/seg100.ts') { res.writeHead(404); return res.end('not yet'); }
+    if (/^\/live\/u1\/p1\/srv[AB]\/seg10[01]\.ts$/.test(u.pathname)) { res.writeHead(200, { 'Content-Type': 'video/mp2t' }); return res.end('VIDEO'); }
     if (u.pathname === '/secret.txt') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('TOP SECRET'); }
     if (u.pathname === '/live/u1/p1/9001.ts') { // a raw MPEG-TS live stream (H.264 + AAC), the way a "ts" provider sends it
       srv.rewindPulls = (srv.rewindPulls || 0) + 1;
@@ -442,6 +446,15 @@ async function main() {
     ok(r.status === 403 && !JSON.stringify(r.j || r.t || '').includes('TOP SECRET'), 'a redirect from the provider to a private address is refused (and nothing from it is passed on)');
     r = await A('GET', '/live/alpha-tv/7002.m3u8');
     ok(r.status === 200 && r.t.includes('#EXTM3U'), 'a redirect that stays on the provider is followed');
+    { // a provider that lists one segment from different servers: the player gets the same address each time, and the other server is asked when the newest one fails
+      await A('PUT', '/api/admin/settings', { rewindMinutes: 0 });
+      const r1 = await A('GET', '/live/alpha-tv/7010.m3u8'), r2 = await A('GET', '/live/alpha-tv/7010.m3u8');
+      const segs = (x) => (x.t || '').split('\n').filter((l) => l.startsWith('/x/'));
+      ok(r1.status === 200 && segs(r1).length === 2 && segs(r1).join() === segs(r2).join(), 'a segment listed from two of the provider\'s servers keeps one address for the player');
+      const sr = await A('GET', segs(r1)[0]);
+      ok(sr.status === 200 && sr.t === 'VIDEO', 'and when the server that listed it last does not have it, the other one is asked');
+      await A('PUT', '/api/admin/settings', { rewindMinutes: 60 });
+    }
     /* rewind: a live channel goes through the server's buffer, one pull from the provider however many watch, and each profile picks its own length */
     r = await A('GET', '/api/rewind');
     ok(r.status === 200 && r.j.max === 60 && r.j.minutes === 60 && r.j.choices.join() === '15,30,60', 'rewind is on by default: 60 minutes, with 30 and 15 to choose');

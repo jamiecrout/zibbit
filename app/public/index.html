@@ -489,6 +489,7 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
 
 <script src="hls.min.js"></script>
 <script src="mpegts.js"></script>
+<script src="player.js"></script>
 <script>
 (() => {
 'use strict';
@@ -757,42 +758,15 @@ function startPlay(it) {
   const base = `/live/${S.pid}/${it.s}`, q = `?cid=${encodeURIComponent(CID)}`;
   S.rw = !!(S.me && S.me.rewind > 0); // the server keeps a buffer for this channel, so it can be wound back with the player's own bar
   $('#btnLive').hidden = true;
-  if (prov().format === 'ts' && !S.rw) startTs(`${base}.ts${q}`); else startHls(`${base}.m3u8${q}`, `${base}.ts${q}`);
+  if (prov().format === 'ts' && !S.rw) Zp.startTs(`${base}.ts${q}`); else Zp.startHls(`${base}.m3u8${q}`, `${base}.ts${q}`);
 }
 
-function startHls(url, tsUrl) {
-  if (window.Hls && Hls.isSupported()) {
-    const hls = new Hls({ maxBufferLength: 15, maxMaxBufferLength: 30, backBufferLength: 10, liveSyncDurationCount: 3, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 3, fragLoadingMaxRetry: 4, enableWorker: true });
-    S.hls = hls;
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { const p = video.play(); if (p && p.catch) p.catch(startedOk(() => S.hls === hls)); });
-    hls.on(Hls.Events.ERROR, (_, d) => {
-      if (!d.fatal || S.hls !== hls) return;
-      const net = d.type === Hls.ErrorTypes.NETWORK_ERROR;
-      if (net && (d.details === 'manifestLoadError' || d.details === 'manifestLoadTimeOut') && !S.triedTs && window.mpegts) {
-        S.triedTs = true; S.rw = false; teardownPlayer(); showOverlay('Connecting', 'Trying the TS stream', true); startTs(tsUrl); return;
-      }
-      if (net && S.netRetries++ < 3) { hls.startLoad(); return; }
-      if (d.type === Hls.ErrorTypes.MEDIA_ERROR && S.mediaRetries++ < 2) { hls.recoverMediaError(); return; }
-      const why = `${d.type}/${d.details}${d.response && d.response.code ? ' HTTP ' + d.response.code : ''}${d.frag && d.frag.sn != null ? ' segment ' + d.frag.sn : ''}${d.reason ? ' ' + d.reason : ''}`;
-      noteFail(why);
-      fail('This channel isn’t responding');
-    });
-    hls.loadSource(url);
-    hls.attachMedia(video);
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = url;
-    const p = video.play(); if (p && p.catch) p.catch(() => {});
-  } else fail('This browser can’t play live streams', 'Open this page in Chrome.');
-}
-function startTs(url) {
-  if (!(window.mpegts && mpegts.isSupported())) return fail('This browser can’t play TS streams', 'Open this page in Chrome.');
-  const pl = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true, liveBufferLatencyMaxLatency: 8, liveBufferLatencyMinRemain: 1.5, autoCleanupSourceBuffer: true });
-  S.ts = pl;
-  pl.attachMediaElement(video);
-  pl.on(mpegts.Events.ERROR, (type, detail) => { if (S.ts === pl) { const why = `ts/${type}/${detail}`; noteFail(why); fail('This channel isn’t responding'); } });
-  pl.load();
-  const p = pl.play(); if (p && p.catch) p.catch(startedOk(() => S.ts === pl));
-}
+/* the live-stream player is shared with the TV page: see player.js */
+const Zp = ZPlayer({
+  video, S, noteFail, fail, teardownPlayer, showOverlay, startedOk,
+  restart: () => { const c = S.current; if (c) startPlay({ s: c.s, n: c.n, i: c.i }); },
+  cantHls: ['This browser can’t play live streams', 'Open this page in Chrome.'], cantTs: ['This browser can’t play TS streams', 'Open this page in Chrome.'],
+});
 
 video.addEventListener('playing', () => {
   S.playing = true; S.starting = false;
