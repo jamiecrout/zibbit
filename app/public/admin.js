@@ -82,8 +82,16 @@ function openAdmin(t) {
   render();
   openDialog(sheet);
 }
-for (const b of document.querySelectorAll('#adminTabs button')) b.addEventListener('click', () => { tab = b.dataset.atab; render(); });
+/* A page with a Save button counts as "changed" once anything on it is edited, until it is saved. Leaving it (Done, Esc, tapping outside, another tab) asks first. */
+let dirty = false;
+const sure = () => !dirty || confirm('You have unsaved changes on this page. Leave without saving?');
+body.addEventListener('input', () => { if (body.querySelector('.savebar')) dirty = true; });
+body.addEventListener('change', () => { if (body.querySelector('.savebar')) dirty = true; });
+sheet.addEventListener('click', (e) => { if ((e.target === sheet || e.target.hasAttribute('data-close')) && !sure()) e.stopImmediatePropagation(); }, true);
+sheet.addEventListener('cancel', (e) => { if (!sure()) e.preventDefault(); });
+for (const b of document.querySelectorAll('#adminTabs button')) b.addEventListener('click', () => { if (b.dataset.atab !== tab && !sure()) return; tab = b.dataset.atab; render(); });
 function render() {
+  dirty = false;
   for (const b of document.querySelectorAll('#adminTabs button')) b.setAttribute('aria-selected', String(b.dataset.atab === tab));
   body.scrollTop = 0;
   ({ providers: renderProviders, channels: renderChannels, playback: renderPlayback, locks: renderLocks, security: renderSecurity })[tab]();
@@ -442,12 +450,19 @@ async function renderPlayback() {
     }));
 }
 function savebar(label, fn) {
-  const f = el('div', 'field');
-  const b = el('button', 'btn primary', label);
-  b.type = 'button';
-  b.addEventListener('click', async () => { b.disabled = true; try { await fn(); } catch (e) { toast(e.message || 'That didn’t work'); } b.disabled = false; });
-  f.append(b);
-  return f;
+  /* two buttons that do the same thing: one at the top of the page (stays in view while scrolling), one at the bottom */
+  const mk = () => { const f = el('div', 'field savebar'); const b = el('button', 'btn primary', label); b.type = 'button'; f.append(b); return { f, b }; };
+  const bottom = mk(), top = mk();
+  top.f.style.cssText = 'position:sticky;top:0;z-index:2;background:var(--ink)';
+  const both = [bottom.b, top.b];
+  const go = async () => {
+    for (const b of both) b.disabled = true;
+    try { await fn(); dirty = false; } catch (e) { toast(e.message || 'That didn’t work'); }
+    for (const b of both) b.disabled = false;
+  };
+  for (const b of both) b.addEventListener('click', go);
+  queueMicrotask(() => body.prepend(top.f)); // the page appends its fields right after this returns
+  return bottom.f;
 }
 
 /* ---------- security ---------- */
