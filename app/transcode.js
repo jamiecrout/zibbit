@@ -302,7 +302,8 @@ function checkRate(j, now) {
   }
   if (longest > (j.longest || 0)) j.longest = longest;
   if (!j.rate) { // the first look counts everything already written since the buffer started: a backlog dumped at the start is the usual case
-    let all = 0; for (const l of text.split(/\r?\n/)) { const d = /^#EXTINF:([\d.]+)/.exec(l); if (d) all += parseFloat(d[1]); }
+    /* a buffer that carried on from an earlier one starts with that history in its list: only segments past where it picked up are new */
+    let all = 0, dd = 0; for (const l of text.split(/\r?\n/)) { const d = /^#EXTINF:([\d.]+)/.exec(l); if (d) dd = parseFloat(d[1]); const n = /^s(\d+)\.ts$/.exec(l.trim()); if (n) { if (!(j.appended && parseInt(n[1], 10) <= j.baseN)) all += dd; dd = 0; } }
     j.rate = { n: newest, at: j.t0, got: all };
   }
   j.rate.got += gained; j.rate.n = Math.max(j.rate.n, newest);
