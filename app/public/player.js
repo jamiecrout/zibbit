@@ -13,10 +13,12 @@
 
     /* ---- starting a stream ---- */
     function startHls(url, tsUrl) {
-      S.liveJumps = 0;
+      S.liveJumps = 0; S.lvl = null; S.frag = null;
       if (window.Hls && Hls.isSupported()) {
         const hls = new Hls(Object.assign({ maxBufferLength: 15, maxMaxBufferLength: 30, backBufferLength: 10, liveSyncDurationCount: 3, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 3, fragLoadingMaxRetry: 4, enableWorker: true }, A.hlsExtra || {}));
         S.hls = hls;
+        hls.on(Hls.Events.LEVEL_UPDATED, (_, d) => { try { const x = d.details; S.lvl = { at: Date.now(), sn: x.startSN + '-' + x.endSN, n: x.fragments.length }; } catch { /* diagnostics only */ } });
+        hls.on(Hls.Events.FRAG_LOADED, (_, d) => { try { S.frag = { at: Date.now(), sn: d.frag.sn }; } catch { /* diagnostics only */ } });
         hls.on(Hls.Events.MANIFEST_PARSED, () => { const p = video.play(); if (p && p.catch) p.catch(A.startedOk(() => S.hls === hls)); });
         hls.on(Hls.Events.ERROR, (_, d) => {
           if (!d.fatal || S.hls !== hls) return;
@@ -55,12 +57,16 @@
       const p = pl.play(); if (p && p.catch) p.catch(A.startedOk(() => S.ts === pl));
     }
 
+    /* what the player knows about the stream, for the log lines below: is it paused, is its playlist still being refreshed, is it still loading segments */
+    const ago = (t) => Math.round((Date.now() - t) / 1000) + ' s ago';
+    const state = () => `${video.paused ? 'paused' : 'playing'}, ready ${video.readyState}, playlist ${S.lvl ? S.lvl.sn + ' (' + S.lvl.n + ' segments) updated ' + ago(S.lvl.at) : 'not seen'}, last segment ${S.frag ? S.frag.sn + ' loaded ' + ago(S.frag.at) : 'none yet'}`;
+
     /* ---- a picture that jumps by more than a moment is logged: where from, where to, what was loaded, and whether we asked for it (go live, skip, scrub) or the player did on its own ---- */
     let why = '', jl = { t: 0, at: 0, sent: 0 };
     function noteJump(kind, from, to) {
       const now = Date.now(); if (now - jl.sent < 2000) return; jl.sent = now;
       const r = live();
-      A.noteFail(`jump (${kind}${why ? ', ' + why : ', by the player'}, ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}): ${Math.round(from)}s -> ${Math.round(to)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, rate ${video.playbackRate}`);
+      A.noteFail(`jump (${kind}${why ? ', ' + why : ', by the player'}, ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}): ${Math.round(from)}s -> ${Math.round(to)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, rate ${video.playbackRate}, ${state()}`);
     }
     video.addEventListener('seeking', () => {
       if (!S.vod && S.playing && Math.abs(video.currentTime - jl.t) > 1.5) noteJump('seek', jl.t, video.currentTime);
@@ -87,7 +93,7 @@
       if (now - fz.at < 10000) return;
       fz.at = now;
       const r = live();
-      A.noteFail(`picture frozen (try ${fz.tries + 1}): at ${Math.round(t)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, ready ${video.readyState}, ${video.videoWidth}x${video.videoHeight}`);
+      A.noteFail(`picture frozen (try ${fz.tries + 1}): at ${Math.round(t)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, ready ${video.readyState}, ${video.videoWidth}x${video.videoHeight}, ${state()}`);
       if (fz.tries === 0 && r.hi && r.hi - t <= 5) { fz.tries = 1; fz.t = t; fz.at = Date.now(); }
       else if (fz.tries === 0 && r.hi) { fz.tries = 1; why = 'freeze nudge'; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } fz.t = video.currentTime; fz.at = Date.now(); } // our own jump is not progress: measure from where it aimed
       else if (fz.tries <= 1) { fz.tries = 2; A.restart(); }

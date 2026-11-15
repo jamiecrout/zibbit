@@ -34,6 +34,21 @@ let jobSeq = 0;       // every run gets its own folder, so a stopped run's clean
  * key -> { dir, floor, at } */
 const carry = new Map();
 const CARRY_MS = 10 * 60 * 1000;
+/* Where a channel's numbering had got to when its last buffer went away without a carry (closed for lack of viewers, or failed to restart).
+ * A buffer built from scratch then goes on from there, instead of starting again at segment 0 under a player that still remembers the old
+ * numbers: that player was seeing the list jump back to the start and kept re-playing the old stream. key -> { n, d, at } */
+const lastEnd = new Map();
+const LASTEND_MS = 6 * 60 * 60 * 1000;
+/* note where a buffer's numbering stands, to be continued by the next one for the same channel */
+function markEnd(job) {
+  try {
+    const n = newestN(job.dir); if (n < 0) return;
+    const t = fs.readFileSync(path.join(job.dir, 'index.m3u8'), 'utf8');
+    const dm = /^#EXT-X-DISCONTINUITY-SEQUENCE:(\d+)/m.exec(t);
+    const tags = (t.match(/^#EXT-X-DISCONTINUITY$/gm) || []).length;
+    lastEnd.set(job.key, { n, d: (job.dbase || 0) + (dm ? parseInt(dm[1], 10) : 0) + tags, at: Date.now() });
+  } catch { /* continuity only */ }
+}
 
 let availability = null;
 function available() {
@@ -61,6 +76,7 @@ function buildArgs(input, dir, opts) {
   const o = opts || {};
   const copyVideo = /^(h264|avc|copy)/i.test(String(o.videoCodec || ''));
   const keepSec = Math.max(0, Math.floor(o.keepSec || 0));
+  const startN = !o.append && o.startN > 0 ? Math.floor(o.startN) : 0;
   const a = ['-hide_banner', '-loglevel', 'warning', '-nostdin', '-protocol_whitelist', 'http,https,tcp,tls,crypto', '-fflags', '+genpts+discardcorrupt', '-rw_timeout', '15000000'];
   if (o.reconnect) a.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '4');
   a.push('-i', input, '-map', '0:v:0', '-map', '0:a:0?');
@@ -75,7 +91,8 @@ function buildArgs(input, dir, opts) {
   // without a rewind buffer: the last 8 segments. With one: enough entries to cover the whole window (a segment is never shorter than HLS_TIME)
   const listSize = keepSec > 0 ? Math.ceil(keepSec / HLS_TIME) + 10 : 8;
   a.push('-f', 'hls', '-hls_time', String(HLS_TIME), '-hls_list_size', String(listSize),
-    '-hls_flags', 'delete_segments+omit_endlist+independent_segments+temp_file' + (o.append ? '+append_list' : ''),
+    '-hls_flags', 'delete_segments+omit_endlist+independent_segments+temp_file' + (o.append ? '+append_list' : '') + (startN ? '+discont_start' : ''),
+    ...(startN ? ['-start_number', String(startN)] : []),
     '-hls_segment_filename', path.join(dir, 's%d.ts'), path.join(dir, 'index.m3u8'));
   return a;
 }
@@ -131,24 +148,27 @@ function open(key, input, opts) {
     if (!okInput(input)) return Promise.reject(Object.assign(new Error('this source is not a web address'), { detail: '' }));
     const old = carry.get(key); carry.delete(key);
     const keepSec0 = Math.max(0, Math.floor((opts && opts.keepSec) || 0));
-    let dir, append = false;
-    if (old && keepSec0 > 0 && Date.now() - old.at < CARRY_MS && newestN(old.dir) >= 0) { dir = old.dir; append = true; } // carry on from where the last buffer stopped
+    let dir, append = false, startN = 0, dbase = 0;
+    if (old && keepSec0 > 0 && Date.now() - old.at < CARRY_MS && newestN(old.dir) >= 0) { dir = old.dir; append = true; dbase = old.dbase || 0; } // carry on from where the last buffer stopped
     else {
       if (old) rmrf(old.dir);
       dir = path.join(ROOT, key.replace(/[^a-z0-9_-]/gi, '_') + '-' + (++jobSeq));
       rmrf(dir);
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const le = lastEnd.get(key); lastEnd.delete(key);
+      if (le && keepSec0 > 0 && Date.now() - le.at < LASTEND_MS) { startN = le.n + 1; dbase = le.d + 1; } // number on from the last buffer, so a player still holding its segments is not told the stream began again
     }
-    job = { key, dir, keepSec: keepSec0, floor: append ? old.floor || 0 : 0, appended: append, carryAt: append ? old.at : 0, baseN: append ? newestN(dir) : -1, onEnd: opts && opts.onEnd, p: opts && opts.p, s: opts && opts.s, last: Date.now(), t0: Date.now(), dead: false, err: '', proc: null, ready: null };
+    job = { key, dir, keepSec: keepSec0, floor: append ? old.floor || 0 : 0, dbase, appended: append, carryAt: append ? old.at : 0, baseN: append ? newestN(dir) : -1, onEnd: opts && opts.onEnd, p: opts && opts.p, s: opts && opts.s, last: Date.now(), t0: Date.now(), dead: false, err: '', proc: null, ready: null };
     jobs.set(key, job);
     const launch = () => {
       if (job.dead) return;
-      const proc = spawn(FFMPEG, buildArgs(input, dir, { ...opts, append }), { stdio: ['ignore', 'ignore', 'pipe'] });
+      const proc = spawn(FFMPEG, buildArgs(input, dir, { ...opts, append, startN }), { stdio: ['ignore', 'ignore', 'pipe'] });
       job.proc = proc;
       proc.stderr.on('data', (d) => { if (!job.first) job.first = String(d).slice(0, 400); job.err = (job.err + d).slice(-2000); });
       proc.on('error', (e) => { job.err = e.code === 'ENOENT' ? 'ffmpeg is not installed on this server' : String(e.message); stop(job); });
       proc.on('close', (code, sig) => { const byItself = !job.dead && job.started; if (byItself) { const q = quick.get(key) || { n: 0, at: 0 }; if (Date.now() - job.t0 < 15000) { q.n = Date.now() - q.at < 60000 ? q.n + 1 : 1; q.at = Date.now(); } else q.n = 0; quick.set(key, q); } job.code = code == null ? sig : code; if (byItself) { try { note(job, 'ended', Math.round((Date.now() - job.t0) / 1000), whole(job)); } catch { /* diagnostics only */ } } job.dead = true; job.exited = true; finish(job); if (jobs.get(key) === job) jobs.delete(key);
-      if (byItself && job.keepSec > 0 && !carry.has(key) && !jobs.has(key) && newestN(dir) >= 0) carry.set(key, { dir, floor: job.floor, at: job.carryAt || Date.now() }); // it ended on its own: the next buffer carries on from it
+      if (byItself && job.keepSec > 0 && !carry.has(key) && !jobs.has(key) && newestN(dir) >= 0) carry.set(key, { dir, floor: job.floor, dbase: job.dbase || 0, at: job.carryAt || Date.now() }); // it ended on its own: the next buffer carries on from it
+      if (!carry.has(key) && job.keepSec > 0) markEnd(job);
       const kept = carry.get(key); if (!kept || kept.dir !== dir) setTimeout(() => rmrf(dir), 2000).unref(); });
     };
     const gap = job.p && stalledAt.has(job.p) ? stalledAt.get(job.p) + RESTART_GAP_MS - Date.now() : 0;
@@ -185,7 +205,7 @@ function explain(err) {
 /* The playlist a viewer is given: only the last `sec` seconds (the buffer may hold more than this person asked to keep), and nothing older
  * than segment number `floor` (segments the disk budget has already removed). MEDIA-SEQUENCE moves up by what was cut, so a player that
  * is already playing sees a consistent list. */
-function windowPlaylist(text, sec, floor) {
+function windowPlaylist(text, sec, floor, dbase) {
   const lines = String(text).split(/\r?\n/);
   const head = [], ents = [];
   let cur = [], seq = 0, dseq = 0, started = false;
@@ -207,7 +227,8 @@ function windowPlaylist(text, sec, floor) {
   /* segments cut from the front take their discontinuity marks with them: the player counts those marks, so the count must follow or every later segment shifts */
   let cut = 0; for (let k = 0; k < from; k++) if (ents[k].lines.some((x) => x.trim() === '#EXT-X-DISCONTINUITY')) cut++;
   let h = head.filter((l) => !/^#EXT-X-DISCONTINUITY-SEQUENCE:/.test(l)).map((l) => (/^#EXT-X-MEDIA-SEQUENCE:/.test(l) ? `#EXT-X-MEDIA-SEQUENCE:${seq + from}` : l));
-  if (dseq + cut > 0) { const i = h.findIndex((l) => /^#EXT-X-MEDIA-SEQUENCE:/.test(l)); h.splice(i < 0 ? h.length : i + 1, 0, `#EXT-X-DISCONTINUITY-SEQUENCE:${dseq + cut}`); }
+  const dtot = dseq + cut + (dbase || 0);
+  if (dtot > 0) { const i = h.findIndex((l) => /^#EXT-X-MEDIA-SEQUENCE:/.test(l)); h.splice(i < 0 ? h.length : i + 1, 0, `#EXT-X-DISCONTINUITY-SEQUENCE:${dtot}`); }
   return h.concat(...kept.map((e) => e.lines)).join('\n') + '\n';
 }
 
@@ -281,7 +302,7 @@ function touch(key) { const j = jobs.get(key); if (j) j.last = Date.now(); retur
 function get(key) { return jobs.get(key); }
 /* Runs the job's end hook once (a Tablo stream's tuner is released here). */
 function finish(job) { if (job.finished) return; job.finished = true; if (job.onEnd) { try { job.onEnd(); } catch { /* best effort */ } } }
-function stop(job, keep, why) { if (why && !job.dead) { try { note(job, 'closed', Math.round((Date.now() - (job.t0 || Date.now())) / 1000), { buf: bufferedSeconds(job), why }); } catch { /* diagnostics only */ } } if (keep && job.keepSec > 0 && newestN(job.dir) >= 0) carry.set(job.key, { dir: job.dir, floor: job.floor, at: job.carryAt || Date.now() }); job.dead = true; finish(job); try { job.proc && job.proc.kill('SIGKILL'); } catch { /* gone */ } if (jobs.get(job.key) === job) jobs.delete(job.key); }
+function stop(job, keep, why) { if (why && !job.dead) { try { note(job, 'closed', Math.round((Date.now() - (job.t0 || Date.now())) / 1000), { buf: bufferedSeconds(job), why }); } catch { /* diagnostics only */ } } if (keep && job.keepSec > 0 && newestN(job.dir) >= 0) carry.set(job.key, { dir: job.dir, floor: job.floor, dbase: job.dbase || 0, at: job.carryAt || Date.now() }); if (!job.dead && !(keep && job.keepSec > 0)) markEnd(job); job.dead = true; finish(job); try { job.proc && job.proc.kill('SIGKILL'); } catch { /* gone */ } if (jobs.get(job.key) === job) jobs.delete(job.key); }
 /* Stops every job for which `keep(job)` is false. */
 function reap(keep, why) { let n = 0; for (const j of [...jobs.values()]) if (!keep(j)) { stop(j, false, why); n++; } return n; }
 function stopAll() { return reap(() => false); }
@@ -315,6 +336,7 @@ function checkRate(j, now) {
 }
 setInterval(() => {
   const now = Date.now();
+  for (const [k, c] of [...lastEnd]) if (now - c.at > LASTEND_MS) lastEnd.delete(k);
   for (const [k, c] of [...carry]) if (now - c.at > CARRY_MS) { carry.delete(k); rmrf(c.dir); }
   for (const j of [...jobs.values()]) { try { checkRate(j, now); } catch { /* diagnostics only */ } }
   for (const j of [...jobs.values()]) {

@@ -2775,7 +2775,7 @@ async function route(req, res) {
       let text;
       try { text = fs.readFileSync(path.join(job.dir, 'index.m3u8'), 'utf8'); } catch { return json(res, 502, { error: 'The stream stopped before it started.' }); }
       ss.last = Date.now();
-      if (job.keepSec > 0) { transcode.noteWant(job, uname + '|' + cid, rwSec); text = transcode.windowPlaylist(text, rwSec, job.floor); }
+      if (job.keepSec > 0) { transcode.noteWant(job, uname + '|' + cid, rwSec); text = transcode.windowPlaylist(text, rwSec, job.floor, job.dbase); }
       const q = `?cid=${encodeURIComponent(cid)}`;
       text = text.split(/\r?\n/).map((l) => (/^s\d+\.ts$/.test(l.trim()) ? `${m[2]}/${l.trim()}${q}` : l)).join('\n');
       res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
