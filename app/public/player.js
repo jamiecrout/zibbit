@@ -76,6 +76,8 @@
       const t = video.currentTime, now = Date.now();
       // time that passed on the clock since the last update bounds how far the picture can honestly have moved
       if (!S.vod && S.playing && !video.seeking && !video.paused && jl.at && t - jl.t > (now - jl.at) / 1000 * video.playbackRate + 1.5) noteJump('silent', jl.t, t);
+      // any step backwards, however small: a segment played again shows up here even when it is too short to count as a jump
+      if (!S.vod && S.playing && !video.paused && jl.at && t < jl.t - 0.3 && now - (jl.back || 0) > 1000) { jl.back = now; A.noteFail(`stepped back (${video.seeking ? 'seeking' : 'while playing'}, ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}): ${jl.t.toFixed(1)}s -> ${t.toFixed(1)}s, loaded ${ranges(video.buffered)}, rate ${video.playbackRate}, ${state()}`); }
       jl.t = t; jl.at = video.paused ? 0 : now;
     });
 
