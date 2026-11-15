@@ -169,7 +169,7 @@ function open(key, input, opts) {
       proc.on('close', (code, sig) => { const byItself = !job.dead && job.started; if (byItself) { const q = quick.get(key) || { n: 0, at: 0 }; if (Date.now() - job.t0 < 15000) { q.n = Date.now() - q.at < 60000 ? q.n + 1 : 1; q.at = Date.now(); } else q.n = 0; quick.set(key, q); } job.code = code == null ? sig : code; if (byItself) { try { note(job, 'ended', Math.round((Date.now() - job.t0) / 1000), whole(job)); } catch { /* diagnostics only */ } } job.dead = true; job.exited = true; finish(job); if (jobs.get(key) === job) jobs.delete(key);
       if (byItself && job.keepSec > 0 && !carry.has(key) && !jobs.has(key) && newestN(dir) >= 0) carry.set(key, { dir, floor: job.floor, dbase: job.dbase || 0, at: job.carryAt || Date.now() }); // it ended on its own: the next buffer carries on from it
       if (!carry.has(key) && job.keepSec > 0) markEnd(job);
-      const kept = carry.get(key); if (!kept || kept.dir !== dir) setTimeout(() => rmrf(dir), 2000).unref(); });
+      const kept = carry.get(key); if (!kept || kept.dir !== dir) setTimeout(() => { if (!inUse(dir)) rmrf(dir); }, 2000).unref(); }); // never under a newer buffer that carried on in this same folder
     };
     const gap = job.p && stalledAt.has(job.p) ? stalledAt.get(job.p) + RESTART_GAP_MS - Date.now() : 0;
     if (gap > 0) setTimeout(launch, gap); else launch();
@@ -302,6 +302,8 @@ function touch(key) { const j = jobs.get(key); if (j) j.last = Date.now(); retur
 function get(key) { return jobs.get(key); }
 /* Runs the job's end hook once (a Tablo stream's tuner is released here). */
 function finish(job) { if (job.finished) return; job.finished = true; if (job.onEnd) { try { job.onEnd(); } catch { /* best effort */ } } }
+/* is a running buffer (or one waiting to carry on) using this folder? */
+function inUse(dir) { for (const j of jobs.values()) if (j.dir === dir && !j.dead) return true; for (const c of carry.values()) if (c.dir === dir) return true; return false; }
 function stop(job, keep, why) { if (why && !job.dead) { try { note(job, 'closed', Math.round((Date.now() - (job.t0 || Date.now())) / 1000), { buf: bufferedSeconds(job), why }); } catch { /* diagnostics only */ } } if (keep && job.keepSec > 0 && newestN(job.dir) >= 0) carry.set(job.key, { dir: job.dir, floor: job.floor, dbase: job.dbase || 0, at: job.carryAt || Date.now() }); if (!job.dead && !(keep && job.keepSec > 0)) markEnd(job); job.dead = true; finish(job); try { job.proc && job.proc.kill('SIGKILL'); } catch { /* gone */ } if (jobs.get(job.key) === job) jobs.delete(job.key); }
 /* Stops every job for which `keep(job)` is false. */
 function reap(keep, why) { let n = 0; for (const j of [...jobs.values()]) if (!keep(j)) { stop(j, false, why); n++; } return n; }
