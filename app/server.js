@@ -483,7 +483,7 @@ async function xtream(p, action, params = {}, timeoutMs = 30000) {
 
 /* ---------- movies and shows ---------- */
 const vod = require('./vod')({ xtream, asArray, dir: path.join(CONFIG_DIR, 'cache'), log: (m) => console.log('[zibbit] ' + m) });
-transcode.setNote((j, what, secs, more) => { const p = providers.get(j.p); if (what === 'ended') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: the buffer's ffmpeg ended by itself after ${secs} s (it had been running fine) | ${String(more || '').replace(/https?:\/\/\S+/g, '…').slice(-500)}`); if (what === 'fast') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} is filling its buffer ${secs}x faster than real time (${more}): the source is sending a backlog or its timestamps jump`); console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} ${what === 'stalled' ? 'stopped sending video' : 'had gone quiet'} for ${secs} s, so its buffer was restarted`); });
+transcode.setNote((j, what, secs, more) => { const p = providers.get(j.p); if (what === 'ended') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: the buffer's ffmpeg ended by itself after ${secs} s (it had been running fine) | ${String(more || '').replace(/https?:\/\/\S+/g, '…').slice(-500)}`); if (what === 'closed') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: its rewind buffer was closed after ${secs} s, holding ${more.buf} s of video: ${more.why}`); if (what === 'fast') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} is filling its buffer ${secs}x faster than real time (${more}): the source is sending a backlog or its timestamps jump`); console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} ${what === 'stalled' ? 'stopped sending video' : 'had gone quiet'} for ${secs} s, so its buffer was restarted`); });
 downloader.setHooks({ log: (m) => console.log('[zibbit] ' + m), urlFor: (pid, kind, id, ext) => { const p = providers.get(pid); return p && vod.supported(p) ? vod.streamUrl(p, kind, id, ext) : null; }, fetchUp: (u, o) => guardedFetch(u, { ...o, headers: { 'User-Agent': UA, ...(o.headers || {}) } }) });
 
 /* ---------- catalog ---------- */
@@ -1008,7 +1008,7 @@ function stopSessions(match) {
 /* A transcode lives only while someone is watching that channel. */
 function reapTranscodes() {
   const now = Date.now();
-  transcode.reap((j) => { if (recorder.recording(j.key)) return true; for (const x of sessions.values()) if (x.p === j.p && x.s === j.s && isLive(x, now)) return true; return false; });
+  transcode.reap((j) => { if (recorder.recording(j.key)) return true; for (const x of sessions.values()) if (x.p === j.p && x.s === j.s && isLive(x, now)) return true; return false; }, 'no live viewer session was left for it');
 }
 
 /* Someone who "takes over" ends another device's stream. That device's player keeps retrying, so it is

@@ -281,9 +281,9 @@ function touch(key) { const j = jobs.get(key); if (j) j.last = Date.now(); retur
 function get(key) { return jobs.get(key); }
 /* Runs the job's end hook once (a Tablo stream's tuner is released here). */
 function finish(job) { if (job.finished) return; job.finished = true; if (job.onEnd) { try { job.onEnd(); } catch { /* best effort */ } } }
-function stop(job, keep) { if (keep && job.keepSec > 0 && newestN(job.dir) >= 0) carry.set(job.key, { dir: job.dir, floor: job.floor, at: job.carryAt || Date.now() }); job.dead = true; finish(job); try { job.proc && job.proc.kill('SIGKILL'); } catch { /* gone */ } if (jobs.get(job.key) === job) jobs.delete(job.key); }
+function stop(job, keep, why) { if (why && !job.dead) { try { note(job, 'closed', Math.round((Date.now() - (job.t0 || Date.now())) / 1000), { buf: bufferedSeconds(job), why }); } catch { /* diagnostics only */ } } if (keep && job.keepSec > 0 && newestN(job.dir) >= 0) carry.set(job.key, { dir: job.dir, floor: job.floor, at: job.carryAt || Date.now() }); job.dead = true; finish(job); try { job.proc && job.proc.kill('SIGKILL'); } catch { /* gone */ } if (jobs.get(job.key) === job) jobs.delete(job.key); }
 /* Stops every job for which `keep(job)` is false. */
-function reap(keep) { let n = 0; for (const j of [...jobs.values()]) if (!keep(j)) { stop(j); n++; } return n; }
+function reap(keep, why) { let n = 0; for (const j of [...jobs.values()]) if (!keep(j)) { stop(j, false, why); n++; } return n; }
 function stopAll() { return reap(() => false); }
 function running() { return jobs.size; }
 /* what this server itself is holding open for a provider, for the log when the provider says no */
@@ -318,7 +318,7 @@ setInterval(() => {
   for (const [k, c] of [...carry]) if (now - c.at > CARRY_MS) { carry.delete(k); rmrf(c.dir); }
   for (const j of [...jobs.values()]) { try { checkRate(j, now); } catch { /* diagnostics only */ } }
   for (const j of [...jobs.values()]) {
-    if (now - j.last > (j.keepSec > 0 ? REWIND_IDLE_MS : IDLE_MS)) stop(j);
+    if (now - j.last > (j.keepSec > 0 ? REWIND_IDLE_MS : IDLE_MS)) stop(j, false, `nobody asked for its playlist or a segment for ${Math.round((now - j.last) / 1000)} s`);
     else if (isStuck(j, STALL_MS)) { note(j, 'stalled', Math.round(quietMs(j) / 1000)); if (j.p) stalledAt.set(j.p, Date.now()); stop(j, true); }
   }
 }, 5000).unref();
