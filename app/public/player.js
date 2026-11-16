@@ -81,22 +81,10 @@
       jl.t = t; jl.at = video.paused ? 0 : now;
     });
 
-    /* ---- the watchdog: an HLS picture that is "playing" but has not moved for 10 s.
-       At the live edge the stream has nothing newer, so it waits. Anywhere else the first step is the smallest one that gets past the stall (a short hop
-       inside what is already loaded, the start of the next loaded stretch when that is close, or asking the loader to fetch from right here), so what
-       is skipped is the gap and not minutes of picture. If it is still stuck 10 s later it steps to the next loaded stretch or just behind live; 10 s after
-       that the channel is started over, and 10 s after that it gives up ---- */
-    /* the nearest place ahead of `t` that already has picture: a hop inside the stretch holding `t`, or the start of the next stretch if it is within `within` seconds */
-    function stepOver(t, within) {
-      const b = video.buffered;
-      try {
-        for (let i = 0; i < b.length; i++) {
-          if (b.start(i) <= t + 0.05 && b.end(i) - t > 2.5) return { to: t + 2, kind: 'hop' };
-          if (b.start(i) > t + 0.05) return b.start(i) - t <= within ? { to: b.start(i) + 0.1, kind: 'next' } : null;
-        }
-      } catch { /* none */ }
-      return null;
-    }
+    /* ---- the watchdog: staying close to live matters more than missing a few seconds. An HLS picture that is "playing" but has not moved for 10 s is
+       started again from scratch, as if the channel had been left and come back to: it lands at the live edge. If that picture is also stuck 10 s on,
+       it gives up and says so. Short stalls (under 10 s) are left to the spinner. Rewinding and pausing are the viewer's own doing and never trigger this:
+       a paused picture is not checked, and a rewound one is moving. ---- */
     let fz = { t: -1, at: 0, tries: 0, cur: '' };
     setInterval(() => {
       const cur = S.current ? S.current.p + '/' + S.current.s : '';
@@ -110,24 +98,8 @@
       fz.at = now;
       const r = live();
       A.noteFail(`picture frozen (try ${fz.tries + 1}): at ${Math.round(t)}s, seekable ${Math.round(r.lo)}-${Math.round(r.hi)}s, loaded ${ranges(video.buffered)}, ready ${video.readyState}, ${video.videoWidth}x${video.videoHeight}, ${state()}`);
-      const edge = !!r.hi && r.hi - t <= 5;
-      const moved = () => { fz.t = video.currentTime; fz.at = Date.now(); }; // our own jump is not progress: measure from where it aimed
-      if (fz.tries === 0) {
-        fz.tries = 1;
-        if (!edge) {
-          const s = stepOver(t, 30);
-          if (s) { why = 'freeze step'; try { video.currentTime = s.to; } catch { /* not seekable */ } }
-          else if (S.hls.startLoad) { try { S.hls.startLoad(t); A.noteFail(`nothing loaded ahead of ${Math.round(t)}s: asking the loader to fetch from here`); } catch { /* gone */ } }
-          else if (r.hi) { why = 'freeze nudge'; try { video.currentTime = Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ } }
-        }
-        moved();
-      } else if (fz.tries === 1 && !edge && r.hi) {
-        fz.tries = 2;
-        const s = stepOver(t, Infinity);
-        why = 'freeze nudge'; try { video.currentTime = s ? s.to : Math.max(r.lo, r.hi - 3); } catch { /* not seekable */ }
-        moved();
-      } else if (fz.tries <= 2) { fz.tries = 3; A.restart(); }
-      else { fz.tries = 4; A.fail('This channel isn’t responding'); }
+      if (fz.tries === 0) { fz.tries = 1; A.restart(); }
+      else { fz.tries = 2; A.fail('This channel isn’t responding'); }
     }, 2000);
 
     return { startHls, startTs, live, why: (w) => { why = w; } };
