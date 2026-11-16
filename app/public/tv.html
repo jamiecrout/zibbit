@@ -737,7 +737,7 @@ function stopPlayback(title, sub) {
 /* tell the server why the player gave up (the reason only, no addresses), so it shows in the Zibbit log next to the channel */
 function noteFail(why) {
   const c = S.current;
-  if (c) send('/api/clientlog', { p: c.p, s: c.s, why: String(why).slice(0, 160) }, 'POST').catch(() => {});
+  if (c) send('/api/clientlog', { p: c.p, s: c.s, why: String(why).slice(0, 400) }, 'POST').catch(() => {});
 }
 async function fail(title, sub) {
   const c = S.current, was = S.playing;

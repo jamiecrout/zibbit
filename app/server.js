@@ -2850,7 +2850,7 @@ async function route(req, res) {
       limitNoted.set(key, c);
       const ch = catalogs.get(b.p) && catalogs.get(b.p).byId.get(String(b.s));
       const at = new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z';
-      console.log(`[zibbit] ${at} ${providers.get(b.p).name}: a player reported on channel ${b.s}${ch ? ' (' + dispName(ch.n) + ')' : ''}: ${String(b.why || '').replace(/[^\w .,:/()=+-]/g, '').slice(0, 160)}`);
+      console.log(`[zibbit] ${at} ${providers.get(b.p).name}: a player reported on channel ${b.s}${ch ? ' (' + dispName(ch.n) + ')' : ''}: ${String(b.why || '').replace(/[^\w .,:/()=+-]/g, '').slice(0, 400)}`);
     }
     return json(res, 200, { ok: true });
   }
