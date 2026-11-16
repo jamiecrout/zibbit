@@ -102,6 +102,29 @@
       else { fz.tries = 2; A.fail('This channel isn’t responding'); }
     }, 2000);
 
+    /* ---- diagnostic only: how far behind the live edge is the picture, and is it growing? Each short stall that resumes where it stopped adds its length
+       to the delay. A line is logged when the delay first passes 10, 20, 30, 60 and 120 s on a channel, when a stall of 2 s or more ends (with the delay
+       after it), and when the delay falls back under 10 s. Time after a pause or rewind by the viewer is marked as theirs. Nothing here changes playback. ---- */
+    let lg = { cur: '', step: 0, manual: false, stallAt: 0, stalls: 0, since: 0 };
+    const behind = () => { const r = live(); return r.hi ? r.hi - video.currentTime : -1; };
+    video.addEventListener('pause', () => { if (!S.vod && S.playing && !video.ended) lg.manual = true; });
+    video.addEventListener('waiting', () => { if (!S.vod && S.playing && !video.paused && !lg.stallAt) lg.stallAt = Date.now(); });
+    video.addEventListener('playing', () => {
+      if (!lg.stallAt) return;
+      const d = (Date.now() - lg.stallAt) / 1000; lg.stallAt = 0;
+      if (d >= 2 && !S.vod) { lg.stalls++; A.noteFail(`behind live: stall of ${d.toFixed(1)} s ended, now ${Math.round(behind())} s behind (stall ${lg.stalls} on this channel${lg.manual ? ', after a pause or rewind' : ''}), ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}`); }
+    });
+    setInterval(() => {
+      const cur = S.current ? S.current.p + '/' + S.current.s : '';
+      if (cur !== lg.cur) lg = { cur, step: 0, manual: false, stallAt: 0, stalls: 0, since: Date.now() };
+      if (!cur || !S.hls || S.vod || !S.playing || video.paused) return;
+      const b = behind(); if (b < 0) return;
+      const steps = [10, 20, 30, 60, 120]; let k = 0; while (k < steps.length && b >= steps[k]) k++;
+      if (k > lg.step) A.noteFail(`behind live: ${Math.round(b)} s behind the live edge (${Math.round((Date.now() - lg.since) / 1000)} s after this channel started, ${lg.stalls} stalls so far${lg.manual ? ', viewer has paused or rewound' : ''}), ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}`);
+      else if (k < lg.step && b < 10) A.noteFail(`behind live: back within ${Math.round(b)} s of the live edge`);
+      lg.step = k;
+    }, 2000);
+
     return { startHls, startTs, live, why: (w) => { why = w; } };
   };
 })();

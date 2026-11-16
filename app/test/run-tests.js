@@ -1101,13 +1101,13 @@ async function playerCheck() {
   const vm = require('vm');
   const src = fs.readFileSync(process.env.PLAYER_SRC || path.join(__dirname, '..', 'public', 'player.js'), 'utf8');
   function frozen(t, ranges, lo, hi) {
-    let tick, clock = 1e6; const seeks = [], loads = []; let restarts = 0, fails = 0;
+    const ticks = []; let clock = 1e6; const tick = () => ticks.forEach((f) => f()); const seeks = [], loads = []; let restarts = 0, fails = 0;
     const video = { paused: false, seeking: false, readyState: 2, videoWidth: 1, videoHeight: 1, playbackRate: 1, _t: t,
       get currentTime() { return this._t; }, set currentTime(v) { seeks.push(v); this._t = v; },
       get buffered() { return { length: ranges.length, start: (i) => ranges[i][0], end: (i) => ranges[i][1] }; },
       get seekable() { return { length: 1, start: () => lo, end: () => hi }; }, addEventListener() {} };
     const S = { hls: { startLoad: (p) => loads.push(p) }, current: { p: 'p', s: '1' }, playing: true, vod: false };
-    const sb = { window: {}, setInterval: (f) => { tick = f; return 1; }, Date: { now: () => clock }, Math, console };
+    const sb = { window: {}, setInterval: (f) => { ticks.push(f); return 1; }, Date: { now: () => clock }, Math, console };
     vm.runInNewContext(src, sb);
     sb.window.ZPlayer({ video, S, noteFail() {}, busy: () => false, restart: () => restarts++, fail: () => fails++ });
     const acts = [];
