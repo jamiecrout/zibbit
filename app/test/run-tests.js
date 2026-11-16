@@ -1095,4 +1095,39 @@ async function keyCheck() {
     ok(!fs.existsSync(path.join(d3, 'recovery.key')) && /providers: Strong, List/.test(log) && !plain(d3), 'a new ZIBBIT_KEY replaces the file key and re-seals what it protected');
   } finally { fs.rmSync(d3, { recursive: true, force: true }); }
 }
-main().then(upgradeCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
+/* the frozen-picture watchdog in public/player.js, run against a pretend video element whose position never moves: what does each rung of its ladder do? */
+async function playerCheck() {
+  console.log('\nplayer watchdog');
+  const vm = require('vm');
+  const src = fs.readFileSync(process.env.PLAYER_SRC || path.join(__dirname, '..', 'public', 'player.js'), 'utf8');
+  function frozen(t, ranges, lo, hi) {
+    let tick, clock = 1e6; const seeks = [], loads = []; let restarts = 0, fails = 0;
+    const video = { paused: false, seeking: false, readyState: 2, videoWidth: 1, videoHeight: 1, playbackRate: 1, _t: t,
+      get currentTime() { return this._t; }, set currentTime(v) { seeks.push(v); this._t = v; },
+      get buffered() { return { length: ranges.length, start: (i) => ranges[i][0], end: (i) => ranges[i][1] }; },
+      get seekable() { return { length: 1, start: () => lo, end: () => hi }; }, addEventListener() {} };
+    const S = { hls: { startLoad: (p) => loads.push(p) }, current: { p: 'p', s: '1' }, playing: true, vod: false };
+    const sb = { window: {}, setInterval: (f) => { tick = f; return 1; }, Date: { now: () => clock }, Math, console };
+    vm.runInNewContext(src, sb);
+    sb.window.ZPlayer({ video, S, noteFail() {}, busy: () => false, restart: () => restarts++, fail: () => fails++ });
+    const acts = [];
+    for (let i = 0; i < 40; i++) { clock += 2000; const before = [seeks.length, loads.length, restarts, fails]; tick(); const after = [seeks.length, loads.length, restarts, fails]; if (after.some((x, k) => x !== before[k])) acts.push({ at: i * 2 + 2, seek: after[0] > before[0] ? seeks[seeks.length - 1] : undefined, load: after[1] > before[1] ? loads[loads.length - 1] : undefined, restart: after[2] > before[2], fail: after[3] > before[3] }); }
+    return acts;
+  }
+  // seen in the log: frozen at 983 s with 972-999 loaded and the live edge at 1009 (it used to be moved to 1006, 23 s on)
+  let a = frozen(983, [[972, 999]], 0, 1009);
+  ok(a.length && a[0].seek > 983 && a[0].seek <= 986, 'frozen inside loaded picture: a short hop, not a jump to the live edge');
+  // seen in the log: frozen at 1724 with the next picture loaded at 2464 (it used to be moved to 2476)
+  a = frozen(1724, [[1709, 1724], [2464, 2479]], 0, 2479);
+  ok(a.length >= 3 && a[0].seek === undefined && a[0].load === 1724, 'a big gap ahead: first asks the loader to fetch from here, skipping nothing');
+  ok(a[1].seek > 2463 && a[1].seek < 2466, 'and only if that does not help, steps to the next loaded picture');
+  ok(a[2].restart, 'then starts the channel over');
+  a = frozen(1790, [[1775, 1790], [1810, 1830]], 0, 2479);
+  ok(a[0].seek > 1810 && a[0].seek < 1812, 'the next loaded picture 20 s on: steps straight to it');
+  a = frozen(2000, [[1990, 2000]], 0, 2002);
+  ok(a.length && a[0].restart && a[0].at >= 20 && a.every((x) => x.seek === undefined && x.load === undefined), 'at the live edge it waits (no jump, no reload), then starts the channel over');
+  a = frozen(1500, [[1490, 1500]], 0, 2000);
+  ok(a[0].load === 1500 && a[0].seek === undefined && a[1].seek >= 1996 && a[1].seek <= 1997.1, 'nothing loaded ahead at all: asks the loader first, then goes to just behind live');
+}
+
+main().then(upgradeCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
