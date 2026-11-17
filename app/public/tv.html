@@ -755,6 +755,7 @@ async function fail(title, sub) {
 }
 async function play(it, take) {
   const seq = ++S.playSeq;
+  if (S.sel && S.sel.k !== 'search') store.set('tv.last', JSON.stringify({ p: S.pid, s: it.s, sel: S.sel })); // where in the guide it was started from, for 'play the last channel on start'
   showOverlay('Connecting', it.n, true);
   try { await send('/api/claim', { p: S.pid, s: it.s, cid: CID, take: !!take }, 'POST'); }
   catch (e) {
@@ -2722,6 +2723,7 @@ async function init() {
   renderTree();
   const b = await ensureBoot(first.id);
   let saved = null; try { saved = JSON.parse(store.get('tv.sel')); } catch { /* none */ }
+  if (settings.resume && info.last) { try { const L = JSON.parse(store.get('tv.last')); if (L && L.p === info.last.p && String(L.s) === String(info.last.s) && L.sel && L.sel.p === L.p) saved = L.sel; } catch { /* none */ } } // the guide opens on the group the channel was last watched from
   let sel = null;
   if (saved && S.providers.some((p) => p.id === saved.p)) {
     if (saved.p !== first.id) { S.open.add(saved.p); ensureBoot(saved.p); }
@@ -2744,7 +2746,7 @@ async function init() {
     try {
       const ch = await api(`/api/p/${info.last.p}/channel?s=${info.last.s}`); // a locked channel answers 403, so it is skipped
       S.pid = info.last.p; S.current = { s: ch.s, n: ch.n, i: ch.i, p: info.last.p }; renderNow(); loadCurrentEpg();
-      play(S.current); setFullscreen(true);
+      play(S.current); // stays in the guide, the picture starts in the preview
     } catch { /* gone, locked or not reachable: stay in the guide */ }
   }
   setInterval(() => { if (S.items.length && S.sel && !MODALS.length) { layoutGuide(); renderGuide(); } }, 60000);
