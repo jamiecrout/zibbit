@@ -121,6 +121,7 @@ button{cursor:pointer}
 .logo{flex:none;width:42px;height:42px;border-radius:9px;background:var(--raised);display:grid;place-items:center;overflow:hidden;font:600 15px var(--cond);color:var(--mute)}
 .logo img{width:100%;height:100%;object-fit:contain}
 .nm{font:600 16px/1.12 var(--cond);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.rs{flex:none;font:700 11px var(--cond);padding:1px 5px;border:1px solid currentColor;border-radius:3px;color:var(--mute);margin-left:6px}
 .star{flex:none;width:36px;height:100%;border:0;background:transparent;font-size:22px;color:var(--mute)}
 .star[aria-pressed="true"]{color:var(--text)}
 .slots{position:absolute;top:0;bottom:0;left:var(--L);right:0}
@@ -535,6 +536,7 @@ async function api(path, opts) {
   if (!r.ok) { const e = new Error((j && j.error) || `Request failed (${r.status})`); e.status = r.status; e.body = j; throw e; }
   return j;
 }
+const resTag = (r) => (r >= 2000 ? 'UHD' : r >= 1000 ? '1080' : r >= 700 ? '720' : 'SD'); // r: the picture height the server has seen for this channel
 const send = (path, body, method = 'PUT') => api(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 function toast(msg) {
@@ -768,6 +770,9 @@ const Zp = ZPlayer({
   cantHls: ['This browser can’t play live streams', 'Open this page in Chrome.'], cantTs: ['This browser can’t play TS streams', 'Open this page in Chrome.'],
 });
 
+// what this player really shows: tell the server once the picture has been steady for a few seconds, so its sizes stay right
+let resSent = '';
+video.addEventListener('playing', () => { const c = S.current, k = c && S.pid + ':' + c.s; if (!c || S.vod || k === resSent) return; setTimeout(() => { if (S.current === c && !S.vod && video.videoHeight > 0 && !video.paused && resSent !== k) { resSent = k; send('/api/res', { p: S.pid, s: c.s, w: video.videoWidth, h: video.videoHeight }, 'POST').catch(() => {}); } }, 6000); });
 video.addEventListener('playing', () => {
   S.playing = true; S.starting = false;
   clearTimeout(S.timers.waiting); clearTimeout(S.timers.pause);
@@ -926,6 +931,7 @@ function rowEl(it) {
   const logo = el('span', 'logo');
   if (it.i) { const img = new Image(); img.loading = 'lazy'; img.decoding = 'async'; img.alt = ''; img.src = it.i; img.onerror = () => { img.remove(); logo.textContent = initials(it.n); }; logo.append(img); } else logo.textContent = initials(it.n);
   pick.append(logo, el('span', 'nm', it.n));
+  if (it.r) pick.append(el('span', 'rs', resTag(it.r)));
   pick.addEventListener('click', () => play(it));
   const star = el('button', 'star', S.favs.has(it.s) ? '★' : '☆');
   star.type = 'button';

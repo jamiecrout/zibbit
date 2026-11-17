@@ -859,6 +859,34 @@ function wantedStreams(p, cat) {
   return sids;
 }
 
+/* ---------- resolution scan ---------- */
+const scanSupported = (p) => p.type === 'xtream' || p.type === 'm3u' || !p.type;
+const scan = require('./scanner')({
+  dir: path.join(CONFIG_DIR, 'cache'),
+  log: (m) => console.log('[zibbit] ' + m),
+  providers: () => [...providers.values()],
+  supported: scanSupported,
+  wanted: async (p) => wantedStreams(p, await getCatalog(p)),
+  urlFor: async (p, sid) => {
+    if (p.type === 'm3u') { const ch = (await getCatalog(p)).byId.get(sid); return ch && ch.u ? ch.u : null; }
+    return `${p.url}/live/${encodeURIComponent(p.username)}/${encodeURIComponent(p.password)}/${sid}.ts`;
+  },
+  idle: async (p) => { // nobody is watching it here, and the account has a stream to spare for other devices
+    const now = Date.now();
+    for (const x of sessions.values()) if (x.p === p.id && isLive(x, now)) return false;
+    if (p.type === 'm3u') return true;
+    const j = await xtream(p, '', {}, 8000);
+    const ui = (j && j.user_info) || {}, max = parseInt(ui.max_connections, 10) || 0, used = parseInt(ui.active_cons, 10) || 0;
+    return max <= 0 || used + (max > 1 ? 2 : 1) <= max;
+  },
+  probe: (url, signal) => transcode.probeSize(url, signal)
+});
+scan.supports = scanSupported;
+scan.start();
+setInterval(async () => { // once an hour: how far the scan has got, so its progress shows in the log
+  for (const p of providers.values()) { if (!scan.supports(p)) continue; try { const c = scan.counts(p.id, await wantedStreams(p, await getCatalog(p))); if (c.wanted) console.log(`[zibbit] resolution scan ${p.name}: ${c.known} of ${c.wanted} channels in your groups and favorites have a known picture size`); } catch { /* catalog not ready */ } }
+}, 3600000).unref();
+
 /* A Tablo's own listings, in the same shape as an XMLTV source. Channels are matched by the Tablo's channel identifier. */
 async function readTabloGuide(p, want) {
   const now = Math.floor(Date.now() / 1000);
@@ -1507,7 +1535,7 @@ const applyOrder = (list, ids) => {
   return placed.concat(list.filter((c) => !pos.has(c.s)));
 };
 const ALL_GROUPS = '__all__'; // the "All channels" view: every ticked group together
-const slim = (p, ch) => ({ s: ch.s, n: dispName(ch.n), c: ch.c, i: iconPath(p.id, ch.i) });
+const slim = (p, ch) => { const o = { s: ch.s, n: dispName(ch.n), c: ch.c, i: iconPath(p.id, ch.i) }; const r = scan.height(p.id, ch.s); if (r) o.r = r; return o; }; // r: picture height in pixels, when known
 
 /* ---------- adult-content lock: who is unlocked, and which groups are held back ---------- */
 const devKey = (req) => { const m = /(?:^|;\s*)dock_session=([^;]+)/.exec(req.headers.cookie || ''); return m ? crypto.createHash('sha256').update(m[1]).digest('hex').slice(0, 32) : ''; };
@@ -2842,6 +2870,12 @@ async function route(req, res) {
       last: st.data.last
     });
   }
+  if (pn === '/api/res' && req.method === 'POST') { // a player says how big the picture it is showing really is
+    const b = await readBody(req, 512).catch(() => ({}));
+    const pv = providers.get(b.p);
+    if (!pv || !/^\d+$/.test(String(b.s))) return json(res, 400, { error: 'bad request' });
+    return json(res, 200, { ok: scan.report(pv.id, String(b.s), b.w, b.h) });
+  }
   if (pn === '/api/clientlog' && req.method === 'POST') { // the player says why it gave up on a channel; one short line, a few a minute
     const b = await readBody(req, 2048);
     const key = 'client:' + uname, now = Date.now(), c = limitNoted.get(key) || { at: 0, n: 0 };
@@ -2936,6 +2970,7 @@ async function route(req, res) {
     const sid = String(b.s || '');
     const cid = cleanCid(b.cid);
     if (!p || !/^\d+$/.test(sid)) return json(res, 400, { error: 'bad request' });
+    scan.yieldTo(p.id); // a viewer comes first: the resolution scan stops using this provider
     const max = await maxConnections(p);
     const now = Date.now();
     // this device's own earlier channel does not count: starting a new one replaces it

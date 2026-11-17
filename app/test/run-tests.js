@@ -1095,6 +1095,39 @@ async function keyCheck() {
     ok(!fs.existsSync(path.join(d3, 'recovery.key')) && /providers: Strong, List/.test(log) && !plain(d3), 'a new ZIBBIT_KEY replaces the file key and re-seals what it protected');
   } finally { fs.rmSync(d3, { recursive: true, force: true }); }
 }
+/* the resolution scan: who it may probe, when it must stop, what it remembers */
+async function scanCheck() {
+  console.log('\nresolution scan');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zscan-'));
+  let clock = 1e12, busy = false; const probed = [], aborted = [];
+  let pending = null;
+  const prov = [{ id: 'a', name: 'A', type: 'xtream' }, { id: 'b', name: 'B', type: 'xtream' }, { id: 'h', name: 'H', type: 'hdhr' }];
+  const mk = () => require('../scanner')({ dir, now: () => clock, gapMs: 1, startDelayMs: 0, slots: 1,
+    providers: () => prov, supported: (p) => p.type === 'xtream', wanted: async () => new Set(['1', '2', '3']),
+    urlFor: async (p, sid) => p.id + ':' + sid, idle: async (p) => !(busy && p.id === 'a'),
+    probe: (u, sig) => new Promise((res) => { probed.push(u); pending = { res, sig }; sig.addEventListener('abort', () => { aborted.push(u); res(null); }); }) });
+  const sc = mk();
+  await sc.tick();
+  ok(probed.length === 1 && probed[0] === 'a:1', 'it starts with a never-seen channel on the first provider');
+  await sc.tick();
+  ok(probed.length === 1, 'with one slot, nothing else starts while a probe is running');
+  pending.res({ w: 1920, h: 1080 }); await new Promise((r) => setTimeout(r, 5));
+  ok(sc.height('a', '1') === 1080, 'the size it measured is remembered');
+  ok(sc.height('a', '2') === 0, 'an unmeasured channel has no size');
+  busy = true; clock += 10000; await sc.tick();
+  ok(probed[probed.length - 1].startsWith('b:'), 'a provider that someone is watching is skipped; an idle one is used');
+  sc.yieldTo('b'); await new Promise((r) => setTimeout(r, 5));
+  ok(aborted.some((u) => u.startsWith('b:')), 'a viewer starting a channel stops the probe on that provider');
+  ok(sc.height('b', probed[probed.length - 1].split(':')[1]) === 0, 'a probe that was stopped leaves no verdict behind');
+  ok(!probed.some((u) => u.startsWith('h:')), 'a provider type it cannot probe is never touched');
+  ok(sc.report('a', '9', 3840, 2160) && sc.height('a', '9') === 2160, 'a player report is taken');
+  ok(sc.report('a', '9', 1920, 800) && sc.height('a', '9') === 1080, 'a letterboxed picture still counts at its width (16:9 equivalent)');
+  ok(!sc.report('a', '9', 5, 5) && !sc.report('a', '9', 99999, 99999), 'nonsense sizes are refused');
+  sc.flush();
+  const again = require('../scanner')({ dir, now: () => clock, providers: () => [], supported: () => false, wanted: async () => new Set(), urlFor: async () => '', idle: async () => true, probe: async () => null });
+  ok(again.height('a', '9') === 1080 && again.height('a', '1') === 1080, 'what it knows survives a restart');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
 /* the frozen-picture watchdog in public/player.js, run against a pretend video element whose position never moves: what does each rung of its ladder do? */
 async function playerCheck() {
   console.log('\nplayer watchdog');
@@ -1123,4 +1156,4 @@ async function playerCheck() {
   }
 }
 
-main().then(upgradeCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
+main().then(upgradeCheck).then(scanCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });

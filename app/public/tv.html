@@ -161,6 +161,7 @@ button{font:inherit;color:inherit}
 .gch .lg img{width:100%;height:100%;object-fit:contain}
 .gch .nm{flex:1;min-width:0;font:600 .95rem var(--cond);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gch .pl{flex:none;color:var(--tally);font-size:.8rem}
+.gch .rs{flex:none;font:700 .62rem var(--cond);padding:1px 5px;border:1px solid currentColor;border-radius:3px;opacity:.7}
 .gch .fv{flex:none;color:#ffd23f;font-size:.8rem}
 .grow.live .gch{box-shadow:inset .3rem 0 0 var(--tally)}
 .slots{position:absolute;left:var(--chan);right:0;top:0;bottom:0;overflow:hidden}
@@ -450,6 +451,7 @@ async function api(path, opts) {
   if (!r.ok) { const e = new Error((j && j.error) || `Request failed (${r.status})`); e.status = r.status; e.body = j; throw e; }
   return j;
 }
+const resTag = (r) => (r >= 2000 ? 'UHD' : r >= 1000 ? '1080' : r >= 700 ? '720' : 'SD'); // r: the picture height the server has seen for this channel
 const send = (path, body, method = 'PUT') => api(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('Could not load ' + src)); document.head.append(s); });
 
@@ -821,6 +823,9 @@ const zp = () => Zp || (Zp = ZPlayer({
   hlsExtra: { enableCEA708Captions: true, subtitleDisplay: false },
   cantHls: ['This player can’t play live streams'], cantTs: ['This player can’t play TS streams'],
 }));
+// what this player really shows: tell the server once the picture has been steady for a few seconds, so its sizes stay right
+let resSent = '';
+video.addEventListener('playing', () => { const c = S.current, k = c && S.pid + ':' + c.s; if (!c || S.vod || k === resSent) return; setTimeout(() => { if (S.current === c && !S.vod && video.videoHeight > 0 && !video.paused && resSent !== k) { resSent = k; send('/api/res', { p: S.pid, s: c.s, w: video.videoWidth, h: video.videoHeight }, 'POST').catch(() => {}); } }, 6000); });
 video.addEventListener('playing', () => {
   S.playing = true; S.starting = false; S.needTap = false;
   clearTimeout(S.timers.waiting); clearTimeout(S.timers.pause);
@@ -1223,12 +1228,13 @@ function renderGuideNow() {
     const live = S.current && S.current.p === S.sel.p && S.current.s === it.s && (S.starting || S.playing);
     const row = el('div', 'grow' + (live ? ' live' : ''));
     row.style.top = n * G.rh + 'px';
-    const fav = !!(bootOf(S.sel.p) && bootOf(S.sel.p).favs && bootOf(S.sel.p).favs.has(it.s)), ck = S.sel.p + ':' + it.s + (fav ? 'f' : '') + (live ? 'l' : '');
+    const fav = !!(bootOf(S.sel.p) && bootOf(S.sel.p).favs && bootOf(S.sel.p).favs.has(it.s)), ck = S.sel.p + ':' + it.s + (fav ? 'f' : '') + (live ? 'l' : '') + (it.r ? 'r' + it.r : '');
     let ch = chCache.get(ck); // the logo and name are built once; scrolling only moves them
     if (!ch) {
       ch = el('div', 'gch'); const lg = el('span', 'lg');
       if (it.i) { const img = new Image(); img.decoding = 'async'; img.alt = ''; img.src = it.i; img.onerror = () => { img.remove(); lg.textContent = initials(it.n); }; lg.append(img); } else lg.textContent = initials(it.n);
       ch.append(lg, el('span', 'nm', it.n));
+      if (it.r) ch.append(el('span', 'rs', resTag(it.r)));
       if (fav) ch.append(el('span', 'fv', '★'));
       if (live) ch.append(el('span', 'pl', '▶'));
       if (chCache.size > 150) chCache.clear();

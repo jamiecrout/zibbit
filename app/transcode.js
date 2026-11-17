@@ -131,6 +131,21 @@ function probeAll(input) {
   });
 }
 
+/* The picture size of a live stream: { w, h }, or null when it could not be read. `signal` stops it at once. */
+function probeSize(input, signal) {
+  return new Promise((resolve) => {
+    let out = '', p;
+    if (signal && signal.aborted) return resolve(null);
+    try { p = spawn(FFMPEG.replace(/ffmpeg$/, 'ffprobe'), ['-v', 'error', '-rw_timeout', '10000000', '-analyzeduration', '3000000', '-probesize', '3000000', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', input], { stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return resolve(null); }
+    const kill = () => { try { p.kill('SIGKILL'); } catch { /* gone */ } };
+    const t = setTimeout(kill, 15000);
+    if (signal) signal.addEventListener('abort', kill, { once: true });
+    p.stdout.on('data', (d) => { out += d; });
+    p.on('error', () => { clearTimeout(t); resolve(null); });
+    p.on('close', () => { clearTimeout(t); const [w, h] = out.trim().split(/\r?\n/)[0].split(',').map((x) => parseInt(x, 10)); resolve(w > 0 && h > 0 ? { w, h } : null); });
+  });
+}
+
 /* how long since this job last finished a segment (the playlist is rewritten each time) */
 function quietMs(job) { try { return Date.now() - fs.statSync(path.join(job.dir, 'index.m3u8')).mtimeMs; } catch { return 0; } }
 /* a channel whose segments are 10 s or longer is quiet for that long between segments while perfectly healthy: wait a few segments' worth, not a fixed 15 s */
@@ -348,4 +363,4 @@ setInterval(() => {
 }, 5000).unref();
 process.on('exit', () => { stopAll(); for (const c of carry.values()) rmrf(c.dir); }); // the server's own SIGINT/SIGTERM handlers call process.exit, which lands here
 
-module.exports = { flaky, heldFor, setNote, noteWant, windowPlaylist, bufferedSeconds, setBudget, enforceBudget, freeBytes, ROOT, available, probe, probeAll, open, touch, get, stop, reap, stopAll, running, explain, MAX_HEIGHT };
+module.exports = { flaky, heldFor, setNote, noteWant, windowPlaylist, bufferedSeconds, setBudget, enforceBudget, freeBytes, ROOT, available, probe, probeAll, probeSize, open, touch, get, stop, reap, stopAll, running, explain, MAX_HEIGHT };
