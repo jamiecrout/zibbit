@@ -102,8 +102,8 @@ module.exports = function scanner(o) {
           running--; active.delete(p.id);
           if (ac.signal.aborted) return;                            // a viewer needed the provider: no verdict on the channel
           const m = load(p.id);
-          if (r && r.w > 0 && r.h > 0) { m[sid] = [r.w, r.h, sec()]; st.fails = 0; }
-          else { m[sid] = [0, 0, sec()]; st.fails++; if (st.fails >= 5) { st.cool = now() + 1800000; st.fails = 0; log(`${p.name}: five probes in a row got no picture size, so the resolution scan leaves it alone for 30 minutes`); } }
+          if (r && r.w > 0 && r.h > 0) { m[sid] = [r.w, r.h, sec()]; st.fails = 0; st.shown = (st.shown || 0) + 1; if (st.shown <= 3) log(`resolution scan ${p.name}: channel ${sid} is ${r.w}x${r.h}`); }
+          else { m[sid] = [0, 0, sec()]; st.fails++; st.bad = (st.bad || 0) + 1; if (st.bad <= 3) log(`resolution scan ${p.name}: channel ${sid} gave no picture size`); if (st.fails >= 5) { st.cool = now() + 1800000; st.fails = 0; log(`${p.name}: five probes in a row got no picture size, so the resolution scan leaves it alone for 30 minutes`); } }
           touch(p.id);
           st.next = now() + gap + Math.floor(Math.random() * gap);
         })();

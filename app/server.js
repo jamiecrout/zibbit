@@ -883,9 +883,10 @@ const scan = require('./scanner')({
 });
 scan.supports = scanSupported;
 scan.start();
-setInterval(async () => { // once an hour: how far the scan has got, so its progress shows in the log
-  for (const p of providers.values()) { if (!scan.supports(p)) continue; try { const c = scan.counts(p.id, await wantedStreams(p, await getCatalog(p))); if (c.wanted) console.log(`[zibbit] resolution scan ${p.name}: ${c.known} of ${c.wanted} channels in your groups and favorites have a known picture size`); } catch { /* catalog not ready */ } }
-}, 3600000).unref();
+const scanSeen = new Map();
+setInterval(async () => { // every ten minutes, when it has moved: how far the scan has got
+  for (const p of providers.values()) { if (!scan.supports(p)) continue; try { const c = scan.counts(p.id, await wantedStreams(p, await getCatalog(p))); const k = c.known + '/' + c.wanted; if (c.wanted && scanSeen.get(p.id) !== k) { scanSeen.set(p.id, k); console.log(`[zibbit] resolution scan ${p.name}: ${c.known} of ${c.wanted} channels in your groups and favorites have a known picture size`); } } catch { /* catalog not ready */ } }
+}, 600000).unref();
 
 /* A Tablo's own listings, in the same shape as an XMLTV source. Channels are matched by the Tablo's channel identifier. */
 async function readTabloGuide(p, want) {
