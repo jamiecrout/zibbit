@@ -558,7 +558,7 @@ const S = {
   triedTs: false, netRetries: 0, mediaRetries: 0, epg: [], playSeq: 0, needTap: false, wake: null, truncated: false,
   timers: { pause: null, hidden: null, waiting: null, fs: null }, loadSeq: 0
 };
-const settings = Object.assign({ pauseStop: 120, hiddenStop: 120, cc: 0, ccSize: 1, uiSize: 1 }, (() => { try { return JSON.parse(store.get('tv.settings')) || {}; } catch { return {}; } })());
+const settings = Object.assign({ pauseStop: 120, hiddenStop: 120, cc: 0, ccSize: 1, uiSize: 1, resume: 0 }, (() => { try { return JSON.parse(store.get('tv.settings')) || {}; } catch { return {}; } })());
 const saveSettings = () => store.set('tv.settings', JSON.stringify(settings));
 const TV_BUILD = 'nov11-i'; let sizeFoot = null;
 const UI_SIZES = [[0, 'Small'], [1, 'Medium'], [2, 'Large']]; // Medium is the stylesheet's own size; the others only add a class (see html.sz0 / html.sz2)
@@ -1502,6 +1502,7 @@ function openSettings() {
   const optLabel = (opts, key) => () => (opts.find((o) => o[0] === settings[key]) || opts[0])[1];
   const first = row('Captions', () => (settings.cc ? 'On' : 'Off'), () => { settings.cc = settings.cc ? 0 : 1; saveSettings(); drawCC(); });
   row('Caption size', () => CC_SIZES[settings.ccSize][0], (d) => { settings.ccSize = (settings.ccSize + d + CC_SIZES.length) % CC_SIZES.length; saveSettings(); sizeCaptions(); });
+  row('Play the last channel on start', () => (settings.resume ? 'On' : 'Off'), () => { settings.resume = settings.resume ? 0 : 1; saveSettings(); });
   row('Stop the stream when paused', optLabel(PAUSE_OPTS, 'pauseStop'), opt(PAUSE_OPTS, 'pauseStop'));
   row('Text and layout size', () => (UI_SIZES.find((x) => x[0] === settings.uiSize) || UI_SIZES[1])[1], (d) => {
     const i = Math.max(0, UI_SIZES.findIndex((x) => x[0] === settings.uiSize));
@@ -2733,6 +2734,13 @@ async function init() {
     } catch { /* channel may be gone */ }
   }
   setZone(S.items.length ? 'guide' : 'side');
+  if (settings.resume && info.last && !S.vod) { // off by default: start the last channel, on whichever provider it was, unless the adult lock holds it back
+    try {
+      const ch = await api(`/api/p/${info.last.p}/channel?s=${info.last.s}`); // a locked channel answers 403, so it is skipped
+      S.pid = info.last.p; S.current = { s: ch.s, n: ch.n, i: ch.i, p: info.last.p }; renderNow(); loadCurrentEpg();
+      play(S.current); setFullscreen(true);
+    } catch { /* gone, locked or not reachable: stay in the guide */ }
+  }
   setInterval(() => { if (S.items.length && S.sel && !MODALS.length) { layoutGuide(); renderGuide(); } }, 60000);
 }
 init();
