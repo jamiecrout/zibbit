@@ -119,10 +119,10 @@
       if (cur !== lg.cur) lg = { cur, step: 0, manual: false, stallAt: 0, stalls: 0, since: Date.now() };
       if (!cur || !S.hls || S.vod || !S.playing || video.paused) return;
       const b = behind(); if (b < 0) return;
-      const steps = [10, 20, 30, 60, 120]; let k = 0; while (k < steps.length && b >= steps[k]) k++;
-      if (k > lg.step) A.noteFail(`behind live: ${Math.round(b)} s behind the live edge (${Math.round((Date.now() - lg.since) / 1000)} s after this channel started, ${lg.stalls} stalls so far${lg.manual ? ', viewer has paused or rewound' : ''}), ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}`);
-      else if (k < lg.step && b < 10) A.noteFail(`behind live: back within ${Math.round(b)} s of the live edge`);
-      lg.step = k;
+      // 10-30 s behind is normal now, so only log a new high past 30 s (30/60/120) and the return to near live
+      const steps = [30, 60, 120]; let k = 0; while (k < steps.length && b >= steps[k]) k++;
+      if (k > lg.step) { lg.step = k; A.noteFail(`behind live: ${Math.round(b)} s behind the live edge (${Math.round((Date.now() - lg.since) / 1000)} s after this channel started, ${lg.stalls} stalls so far${lg.manual ? ', viewer has paused or rewound' : ''}), ${S.rw ? 'buffered' : S.ts ? 'ts' : 'direct hls'}`); }
+      else if (lg.step > 0 && b < 15) { lg.step = 0; A.noteFail(`behind live: back within ${Math.round(b)} s of the live edge`); }
     }, 2000);
 
     return { startHls, startTs, live, why: (w) => { why = w; } };
