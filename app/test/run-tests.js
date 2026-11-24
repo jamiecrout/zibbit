@@ -1095,6 +1095,14 @@ async function keyCheck() {
     ok(!fs.existsSync(path.join(d3, 'recovery.key')) && /providers: Strong, List/.test(log) && !plain(d3), 'a new ZIBBIT_KEY replaces the file key and re-seals what it protected');
   } finally { fs.rmSync(d3, { recursive: true, force: true }); }
 }
+/* a provider that keeps going quiet: the rewind buffer is restarted again and again, and its segment numbers must never repeat */
+async function carryCheck() {
+  console.log('\nrestarted rewind buffer');
+  const out = await new Promise((res) => { let o = ''; const c = spawn(process.execPath, [path.join(__dirname, 'transcode-carry.js')], { stdio: ['ignore', 'pipe', 'inherit'] }); c.stdout.on('data', (d) => { o += d; }); c.on('close', () => res(o)); });
+  const rows = out.split('\n').filter((l) => /^(ok|FAIL) /.test(l));
+  ok(rows.length === 2, 'the restart check ran');
+  for (const l of rows) ok(l.startsWith('ok'), l.slice(5));
+}
 /* the resolution scan: who it may probe, when it must stop, what it remembers */
 async function scanCheck() {
   console.log('\nresolution scan');
@@ -1156,4 +1164,4 @@ async function playerCheck() {
   }
 }
 
-main().then(upgradeCheck).then(scanCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
+main().then(upgradeCheck).then(carryCheck).then(scanCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
