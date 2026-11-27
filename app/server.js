@@ -483,7 +483,7 @@ async function xtream(p, action, params = {}, timeoutMs = 30000) {
 
 /* ---------- movies and shows ---------- */
 const vod = require('./vod')({ xtream, asArray, dir: path.join(CONFIG_DIR, 'cache'), log: (m) => console.log('[zibbit] ' + m) });
-transcode.setNote((j, what, secs, more) => { const p = providers.get(j.p); if (what === 'ended') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: the buffer's ffmpeg ended by itself after ${secs} s (it had been running fine) | ${String(more || '').replace(/https?:\/\/\S+/g, '…').slice(-500)}`); if (what === 'closed') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: its rewind buffer was closed after ${secs} s, holding ${more.buf} s of video: ${more.why}`); if (what === 'fast') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} is filling its buffer ${secs}x faster than real time (${more}): the source is sending a backlog or its timestamps jump`); console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} ${what === 'stalled' ? 'stopped sending video' : 'had gone quiet'} for ${secs} s, so its buffer was restarted`); });
+transcode.setNote((j, what, secs, more) => { const p = providers.get(j.p); if (what === 'warnings') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: ffmpeg's buffer complained about the feed over ${secs} s: ${more}`); if (what === 'ended') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: the buffer's ffmpeg ended by itself after ${secs} s (it had been running fine) | ${String(more || '').replace(/https?:\/\/\S+/g, '…').slice(-500)}`); if (what === 'closed') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s}: its rewind buffer was closed after ${secs} s, holding ${more.buf} s of video: ${more.why}`); if (what === 'fast') return console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} is filling its buffer ${secs}x faster than real time (${more}): the source is sending a backlog or its timestamps jump`); console.log(`[zibbit] ${p ? p.name : j.p}: channel ${j.s} ${what === 'stalled' ? 'stopped sending video' : 'had gone quiet'} for ${secs} s, so its buffer was restarted`); });
 downloader.setHooks({ log: (m) => console.log('[zibbit] ' + m), urlFor: (pid, kind, id, ext) => { const p = providers.get(pid); return p && vod.supported(p) ? vod.streamUrl(p, kind, id, ext) : null; }, fetchUp: (u, o) => guardedFetch(u, { ...o, headers: { 'User-Agent': UA, ...(o.headers || {}) } }) });
 
 /* ---------- catalog ---------- */
@@ -1083,6 +1083,30 @@ const segSrc = new Map(); // "provider|channel|file name" -> { urls: [newest fir
 setInterval(() => { const old = Date.now() - 600000; for (const [k, v] of segSrc) if (v.at < old) segSrc.delete(k); }, 60000).unref();
 const segFile = (u) => { try { return decodeURIComponent(u.pathname.split('/').pop() || ''); } catch { return ''; } };
 const segUrls = (t) => { const e = segSrc.get(`${t.p}|${t.s}|${t.f}`); return e ? e.urls : null; };
+
+/* Diagnostic: says so when a provider's playlist goes backward (an older newest segment, or a lower media sequence than a moment ago),
+ * which is what a replay looks like from here. At most one line a minute per channel, with the server that answered. */
+const listSeen = new Map(); // "kind|provider|channel" -> { n, idx: Map(name -> order), last, seq, said }
+function trackList(meta, names, lines, now) {
+  const key = `${meta.k || 'v'}|${meta.p}|${meta.s}`;
+  let st = listSeen.get(key);
+  if (!st) { if (listSeen.size > 500) listSeen.clear(); st = { n: 0, idx: new Map(), last: '', seq: -1, said: 0, at: now }; listSeen.set(key, st); }
+  const sm = lines.map((l) => /^#EXT-X-MEDIA-SEQUENCE:(\d+)/.exec(l)).find(Boolean);
+  const seq = sm ? parseInt(sm[1], 10) : -1;
+  const last = names[names.length - 1];
+  let why = '';
+  if (st.seq >= 0 && seq >= 0 && seq < st.seq) why = `media sequence went from ${st.seq} down to ${seq}`;
+  if (!st.idx.has(last)) st.idx.set(last, ++st.n);
+  else if (st.last && last !== st.last && st.idx.get(last) < st.idx.get(st.last)) why = (why ? why + '; ' : '') + `newest segment went back to ${last} (was ${st.last})`;
+  if (st.idx.size > 600) { const keep = [...st.idx.entries()].sort((a, b) => b[1] - a[1]).slice(0, 300); st.idx = new Map(keep); }
+  st.last = last; if (seq >= 0) st.seq = seq; st.at = now;
+  if (why && now - st.said > 60000) {
+    st.said = now;
+    const pv = providers.get(meta.p), e = segSrc.get(`${meta.p}|${meta.s}|${last}`);
+    let host = '?'; try { host = new URL(e && e.urls[0]).host; } catch { /* unknown */ }
+    console.log(`[zibbit] ${new Date(now).toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} playlist went backward (${why}; newest segment from ${host}; ${meta.k === 'ingest' ? 'rewind buffer feed' : 'direct'})`);
+  }
+}
 const multiNoted = new Map();
 function rewritePlaylist(text, baseUrl, meta) {
   /* the addresses the rewind buffer's ffmpeg is given end in .ts / .m3u8 / .mp4, because newer ffmpeg refuses HLS segments that have no
@@ -1105,6 +1129,7 @@ function rewritePlaylist(text, baseUrl, meta) {
   const names = segs.map((u) => (u ? segFile(u) : ''));
   const byName = meta.s && segs.length > 0 && names.every(Boolean) && new Set(names).size === names.length;
   const now = Date.now(); let si = 0, inf = false, after = '';
+  if (byName) trackList(meta, names, lines, now);
   return lines.map((line) => {
     if (!line.trim()) return line;
     if (line.startsWith('#')) {

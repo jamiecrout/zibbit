@@ -179,9 +179,9 @@ function open(key, input, opts) {
       if (job.dead) return;
       const proc = spawn(FFMPEG, buildArgs(input, dir, { ...opts, append, startN }), { stdio: ['ignore', 'ignore', 'pipe'] });
       job.proc = proc;
-      proc.stderr.on('data', (d) => { if (!job.first) job.first = String(d).slice(0, 400); job.err = (job.err + d).slice(-2000); });
+      proc.stderr.on('data', (d) => { if (!job.first) job.first = String(d).slice(0, 400); job.err = (job.err + d).slice(-2000); countWarn(job, String(d)); });
       proc.on('error', (e) => { job.err = e.code === 'ENOENT' ? 'ffmpeg is not installed on this server' : String(e.message); stop(job); });
-      proc.on('close', (code, sig) => { const byItself = !job.dead && job.started; if (byItself) { const q = quick.get(key) || { n: 0, at: 0 }; if (Date.now() - job.t0 < 15000) { q.n = Date.now() - q.at < 60000 ? q.n + 1 : 1; q.at = Date.now(); } else q.n = 0; quick.set(key, q); } job.code = code == null ? sig : code; if (byItself) { try { note(job, 'ended', Math.round((Date.now() - job.t0) / 1000), whole(job)); } catch { /* diagnostics only */ } } job.dead = true; job.exited = true; finish(job); if (jobs.get(key) === job) jobs.delete(key);
+      proc.on('close', (code, sig) => { const byItself = !job.dead && job.started; if (byItself) { const q = quick.get(key) || { n: 0, at: 0 }; if (Date.now() - job.t0 < 15000) { q.n = Date.now() - q.at < 60000 ? q.n + 1 : 1; q.at = Date.now(); } else q.n = 0; quick.set(key, q); } job.code = code == null ? sig : code; if (job.warn) { try { note(job, 'warnings', Math.round((Date.now() - job.t0) / 1000), warnSummary(job)); } catch { /* diagnostics only */ } } if (byItself) { try { note(job, 'ended', Math.round((Date.now() - job.t0) / 1000), whole(job)); } catch { /* diagnostics only */ } } job.dead = true; job.exited = true; finish(job); if (jobs.get(key) === job) jobs.delete(key);
       if (byItself && job.keepSec > 0 && !carry.has(key) && !jobs.has(key) && newestN(dir) >= 0) carry.set(key, { dir, floor: job.floor, dbase: job.dbase || 0, at: Date.now() }); // it ended on its own: the next buffer carries on from it
       if (!carry.has(key) && job.keepSec > 0) markEnd(job);
       const kept = carry.get(key); if (!kept || kept.dir !== dir) setTimeout(() => { if (!inUse(dir)) rmrf(dir); }, 2000).unref(); }); // never under a newer buffer that carried on in this same folder
@@ -203,6 +203,12 @@ function open(key, input, opts) {
   job.last = Date.now();
   return job.ready;
 }
+
+
+/* Diagnostic: how often ffmpeg complained about timestamps or damaged data, said in the log when the buffer ends. */
+const WARN_RE = /non[- ]monotonous|timestamp discontinuity|Packet corrupt|corrupt|Invalid data|missed .*segment|Skipping \d+ segments|discontinuity|DTS .* out of order|Application provided invalid/ig;
+function countWarn(job, text) { const m = text.match(WARN_RE); if (!m) return; job.warn = job.warn || {}; for (const w of m) { const k = w.toLowerCase(); job.warn[k] = (job.warn[k] || 0) + 1; } }
+function warnSummary(job) { return job.warn ? Object.entries(job.warn).map(([k, v]) => `${k} x${v}`).join(', ') : ''; }
 
 /* What ffmpeg said first and last: the first complaint is usually the cause, the last is what it died of. */
 function whole(job) { const t = job.first && !job.err.startsWith(job.first) ? job.first + ' … ' + job.err.slice(-400) : job.err; return t + ` [ffmpeg ${job.exited ? 'ended' : 'stopped'}${job.code != null ? ' (' + job.code + ')' : ''} after ${Math.round((Date.now() - (job.t0 || Date.now())) / 1000)} s]`; }
