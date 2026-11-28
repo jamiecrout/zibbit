@@ -1084,6 +1084,33 @@ setInterval(() => { const old = Date.now() - 600000; for (const [k, v] of segSrc
 const segFile = (u) => { try { return decodeURIComponent(u.pathname.split('/').pop() || ''); } catch { return ''; } };
 const segUrls = (t) => { const e = segSrc.get(`${t.p}|${t.s}|${t.f}`); return e ? e.urls : null; };
 
+/* Limited diagnostic: when a provider lists one segment from two servers, ask both for it once and say whether they hold the same bytes.
+ * At most 40 comparisons per run of the server and one per channel every two minutes. Nothing is stored. */
+const segCmp = { left: 40, at: new Map() };
+function compareSegment(t, l) {
+  try {
+    if (!l || l.length < 2 || segCmp.left <= 0) return;
+    const k = t.p + '|' + t.s, now = Date.now();
+    if (now - (segCmp.at.get(k) || 0) < 120000) return;
+    const dn = refused.get(k); if (dn && dn.until > now) return;
+    segCmp.at.set(k, now); segCmp.left--; if (segCmp.at.size > 500) segCmp.at.clear();
+    const urls = l.slice(0, 2), pv = providers.get(t.p);
+    Promise.all(urls.map(async (u) => {
+      const host = hostOf(u);
+      try {
+        const r = await guardedFetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) });
+        if (!r.ok) { try { await r.body?.cancel(); } catch { /* closed */ } return { host, note: 'HTTP ' + r.status }; }
+        const b = Buffer.from(await r.arrayBuffer()).subarray(0, 8e6);
+        return { host, size: b.length, sha: crypto.createHash('sha1').update(b).digest('hex').slice(0, 10) };
+      } catch (e) { return { host, note: cleanErr(e) }; }
+    })).then((rs) => {
+      const d = (x) => (x.note ? `${x.host} ${x.note}` : `${x.host} ${x.size} bytes ${x.sha}`);
+      const both = rs.every((x) => x.sha), same = both && rs[0].sha === rs[1].sha;
+      console.log(`[zibbit] ${new Date().toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : t.p}: channel ${t.s} segment ${t.f} from two servers: ${same ? 'identical' : both ? 'DIFFERENT' : 'not comparable'} (${rs.map(d).join(' | ')}) [${segCmp.left} comparisons left]`);
+    }).catch(() => {});
+  } catch { /* diagnostics only */ }
+}
+
 /* Diagnostic: says so when a provider's playlist goes backward (an older newest segment, or a lower media sequence than a moment ago),
  * which is what a replay looks like from here. At most one line a minute per channel, with the server that answered. */
 const short = (a) => (a.length > 6 ? [...a.slice(0, 3), '…', ...a.slice(-3)] : a).map((x) => String(x).slice(-24)).join(' ') + ` (${a.length})`;
@@ -2649,7 +2676,7 @@ async function route(req, res) {
     const ra = req.socket.remoteAddress || '';
     const t = req.method === 'GET' && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(ra) && !req.headers['x-forwarded-for'] && !req.headers.forwarded ? unseal(pn.slice(10).replace(/\.[a-z0-9]{1,5}$/, '')) : null;
     if (!t || t.k !== 'ingest') { res.writeHead(404); return res.end('not found'); }
-    if (t.f) { const l = segUrls(t); if (!l) { res.writeHead(404); return res.end('not listed (any more)'); } return pipeUpstream(req, res, l[0], { p: t.p, s: t.s, k: 'ingest', alts: l.slice(1) }); }
+    if (t.f) { const l = segUrls(t); if (!l) { res.writeHead(404); return res.end('not listed (any more)'); } compareSegment(t, l); return pipeUpstream(req, res, l[0], { p: t.p, s: t.s, k: 'ingest', alts: l.slice(1) }); }
     if (!/^https?:\/\//i.test(t.u || '')) { res.writeHead(404); return res.end('not found'); }
     return pipeUpstream(req, res, t.u, { p: t.p, s: t.s, k: 'ingest' });
   }
@@ -2687,6 +2714,7 @@ async function route(req, res) {
     const t = unseal(m[1]);
     const l = t && t.f ? segUrls(t) : null; // a segment named by file name: where it lives is looked up
     if (t && t.f && !l) { res.writeHead(404); return res.end('not listed (any more)'); }
+    if (l) compareSegment(t, l);
     if (!t || !(l || (t.u && /^https?:\/\//i.test(t.u)))) { res.writeHead(400); return res.end('bad token'); }
     if (t.s && evicted.has([uname, t.c || '', t.p].join('|'))) return json(res, 410, { error: 'taken over' });
     if (ADULT_ON && user && t.k !== 'icon') unlocks.touch(devKey(req), user.name);
