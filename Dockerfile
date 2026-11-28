@@ -5,7 +5,7 @@ FROM node:22-alpine
 # ffmpeg converts antenna-tuner (HDHomeRun) video, which browsers can't play, while someone is watching
 RUN apk add --no-cache ffmpeg su-exec
 WORKDIR /app
-COPY app/package.json app/server.js app/transcode.js app/recorder.js app/downloader.js app/tablo.js app/vod.js app/adult.js app/scanner.js app/update-channel.txt ./
+COPY app/package.json app/server.js app/transcode.js app/recorder.js app/downloader.js app/tablo.js app/vod.js app/adult.js app/scanner.js app/pin.js app/update-channel.txt ./
 COPY app/public ./public
 # starts the server as an ordinary user (PUID / PGID), not as root
 COPY app/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

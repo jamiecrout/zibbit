@@ -1136,7 +1136,7 @@ function trackList(meta, names, lines, now) {
   }
 }
 const multiNoted = new Map();
-function rewritePlaylist(text, baseUrl, meta) {
+function rewritePlaylistCore(text, baseUrl, meta) {
   /* the addresses the rewind buffer's ffmpeg is given end in .ts / .m3u8 / .mp4, because newer ffmpeg refuses HLS segments that have no
    * recognisable file extension (the extension is only a label; the server looks the real address up from the sealed part) */
   const wrap = (u, ext) => {
@@ -1185,6 +1185,46 @@ function rewritePlaylist(text, baseUrl, meta) {
     const tok = seal({ k: meta.k === 'ingest' ? 'ingest' : 'seg', p: meta.p, s: meta.s, c: meta.k === 'ingest' ? undefined : meta.c, f }, true);
     return meta.k === 'ingest' ? '/__ingest/' + tok + (after || '') : '/x/' + tok;
   }).join('\n');
+}
+
+const segPins = require('./pin.js')();
+/* the distinct servers a live playlist lists its segments from, or null when it is not one this applies to (a master list, an ended list, nothing listed) */
+function listHosts(text, baseUrl) {
+  if (/#EXT-X-ENDLIST/.test(text)) return null;
+  const hosts = new Set(); let prev = false, n = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim(); if (!line) continue;
+    if (line.startsWith('#')) { if (/^#EXTINF/.test(line)) prev = true; continue; }
+    if (prev) { prev = false; n++; try { hosts.add(new URL(line, baseUrl).hostname.toLowerCase()); } catch { return null; } }
+  }
+  return n ? [...hosts] : null;
+}
+/* a playlist from a server this channel is not pinned to: what it lists is kept only as a second place to ask for a segment */
+function keepAsFallback(text, baseUrl, meta, now) {
+  const hrefs = []; let prev = false;
+  for (const raw of text.split(/\r?\n/)) { const line = raw.trim(); if (!line) continue; if (line.startsWith('#')) { if (/^#EXTINF/.test(line)) prev = true; continue; } if (prev) { prev = false; try { hrefs.push(new URL(line, baseUrl)); } catch { return; } } }
+  const names = hrefs.map(segFile); if (!names.every(Boolean) || new Set(names).size !== names.length) return;
+  hrefs.forEach((u, i) => {
+    const key = `${meta.p}|${meta.s}|${names[i]}`; let e = segSrc.get(key);
+    if (!e) { if (segSrc.size >= 20000) segSrc.clear(); e = { urls: [], at: now }; segSrc.set(key, e); }
+    e.at = now; if (!e.urls.includes(u.href)) e.urls = [...e.urls, u.href].slice(0, 3);
+  });
+}
+function pinNote(c, meta, now) {
+  const pv = providers.get(meta.p), at = new Date(now).toISOString().replace('T', ' ').slice(0, 19) + 'Z';
+  const what = c.event === 'pin' ? `now takes its playlist and segments from server ${c.host}${c.from ? ' (it was not ' + c.from + ', whose segments had just failed)' : ''}` : `moved to server ${c.host}: ${c.from} gave no playlist for over 12 s (${c.skipped || 0} lists from ${c.host} were set aside meanwhile)`;
+  console.log(`[zibbit] ${at} ${pv ? pv.name : meta.p}: channel ${meta.s} ${what}`);
+}
+function rewritePlaylist(text, baseUrl, meta) {
+  if (meta.s && meta.k !== 'vod') {
+    const hosts = listHosts(text, baseUrl);
+    if (hosts) {
+      const now = Date.now(), c = segPins.choose(meta.p + '|' + meta.s, hosts, text, now, baseUrl);
+      if (c.event) pinNote(c, meta, now);
+      if (c.kept) { try { keepAsFallback(text, baseUrl, meta, now); } catch { /* fallbacks only */ } text = c.text; baseUrl = c.ctx || baseUrl; }
+    }
+  }
+  return rewritePlaylistCore(text, baseUrl, meta);
 }
 
 /* ---------- app updates: the Android app asks this server whether a newer app exists ---------- */
@@ -1368,6 +1408,7 @@ async function pipeUpstream(req, res, url, meta) {
     if (alts && (!r || !r.ok)) {
       /* the first server failed or lacks this segment: the same segment, as another of the provider's servers lists it */
       const why = r ? 'HTTP ' + r.status : cleanErr(firstErr);
+      if (meta.s) { const ev = segPins.fail(meta.p + '|' + meta.s, hostOf(url), Date.now()); if (ev) { const pv0 = providers.get(meta.p); console.log(`[zibbit] ${new Date().toISOString().replace('T', ' ').slice(0, 19)}Z ${pv0 ? pv0.name : meta.p}: channel ${meta.s}: segments from ${ev.host} failed ${3} times in a row, so the channel will take the next playlist from whichever server answers`); } }
       for (const alt of alts) {
         try {
           const r2 = await guardedFetch(alt, { headers, signal: ac.signal });

@@ -1096,6 +1096,52 @@ async function keyCheck() {
   } finally { fs.rmSync(d3, { recursive: true, force: true }); }
 }
 /* a provider that keeps going quiet: the rewind buffer is restarted again and again, and its segment numbers must never repeat */
+/* ---- a channel sticks to one provider server, and moves only when that server stops answering ---- */
+async function pinCheck() {
+  console.log('\nprovider server pinning');
+  const pins = require('../pin.js');
+  const list = (host, first, n = 6) => { const L = ['#EXTM3U', '#EXT-X-MEDIA-SEQUENCE:' + first]; for (let i = first; i < first + n; i++) L.push('#EXTINF:2.0,', `http://${host}/s/c_${i}.ts`); return L.join('\n'); };
+  const seqOf = (t) => +/MEDIA-SEQUENCE:(\d+)/.exec(t)[1];
+  const hostsOf = (t) => [...new Set([...t.matchAll(/http:\/\/([^/]+)\//g)].map((x) => x[1]))];
+
+  /* two servers, the second always two segments behind, answers alternating */
+  const p = pins(), pat = [0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0];
+  let backBefore = 0, backAfter = 0, lastB = -1, lastA = -1, mixed = 0, t = 1000;
+  for (let step = 0; step < 60; step++) {
+    const newest = 100 + step, bh = pat[step % pat.length] ? 'b' : 'a', first = bh === 'a' ? newest - 5 : newest - 7;
+    const raw = list(bh, first);
+    if (lastB >= 0 && seqOf(raw) < lastB) backBefore++; lastB = seqOf(raw);
+    const c = p.choose('s|1', hostsOf(raw), raw, t += 2000, 'base');
+    if (lastA >= 0 && seqOf(c.text) < lastA) backAfter++; lastA = seqOf(c.text);
+    if (hostsOf(c.text).length !== 1) mixed++;
+  }
+  ok(backBefore > 5, `without pinning the list steps back (${backBefore} times in 60 reads)`);
+  ok(backAfter === 0, 'with pinning it never steps back');
+  ok(mixed === 0, 'and never lists two servers at once');
+
+  /* the pinned server falls silent: after 12 s the next server's list is taken */
+  const q = pins(); let now = 0;
+  q.choose('s|2', ['a'], list('a', 10), now += 1000);
+  let kept = 0, moved = null;
+  for (let k = 0; k < 8; k++) { const c = q.choose('s|2', ['b'], list('b', 12 + k), now += 2000); if (c.kept) kept++; if (c.event === 'switch') { moved = c; break; } }
+  ok(kept >= 4 && moved && moved.host === 'b' && moved.from === 'a', `a silent server is given up after ~12 s (set aside ${kept} lists, then moved a -> b)`);
+  ok(seqOf(moved.text) >= 12, 'and the list handed out after the move is the new one');
+
+  /* its segments keep failing: unpin, and do not go straight back to it */
+  const r = pins(); now = 0;
+  r.choose('s|3', ['a'], list('a', 20), now += 1000);
+  ok(r.fail('s|3', 'a', now += 100) === null && r.fail('s|3', 'a', now += 100) === null, 'two failures are put up with');
+  ok(r.fail('s|3', 'a', now += 100) && r.pinned('s|3') === null, 'the third in 30 s unpins it');
+  const back = r.choose('s|3', ['a'], list('a', 22), now += 1000), other = r.choose('s|3', ['b'], list('b', 20), now += 1000);
+  ok(back.kept === true, 'the server that failed is not taken again while another may answer');
+  ok(other.event === 'pin' && other.host === 'b', 'the other server is taken instead');
+  const only = pins(); now = 0;
+  only.choose('s|4', ['a'], list('a', 1), now += 1000); for (let k = 0; k < 3; k++) only.fail('s|4', 'a', now += 100);
+  let took = null; for (let k = 0; k < 8 && !took; k++) { const c = only.choose('s|4', ['a'], list('a', 5 + k), now += 2000); if (!c.kept) took = c; }
+  ok(took && took.host === 'a', 'if it is the only server answering it is used again after a while');
+  ok(pins().choose('s|5', ['a', 'b'], list('a', 1) + '\nhttp://b/x', 5).event === null, 'a list that already mixes servers is left alone');
+}
+
 async function carryCheck() {
   console.log('\nrestarted rewind buffer');
   const out = await new Promise((res) => { let o = ''; const c = spawn(process.execPath, [path.join(__dirname, 'transcode-carry.js')], { stdio: ['ignore', 'pipe', 'inherit'] }); c.stdout.on('data', (d) => { o += d; }); c.on('close', () => res(o)); });
@@ -1164,4 +1210,4 @@ async function playerCheck() {
   }
 }
 
-main().then(upgradeCheck).then(carryCheck).then(scanCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
+main().then(upgradeCheck).then(pinCheck).then(carryCheck).then(scanCheck).then(playerCheck).then(keyCheck).then(strayCheck).then(() => { console.log(`\n${pass} passed, ${failN} failed`); if (failN) process.exit(1); }).catch((e) => { console.error(e); process.exit(1); });
