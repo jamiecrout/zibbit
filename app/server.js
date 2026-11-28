@@ -1086,6 +1086,7 @@ const segUrls = (t) => { const e = segSrc.get(`${t.p}|${t.s}|${t.f}`); return e 
 
 /* Diagnostic: says so when a provider's playlist goes backward (an older newest segment, or a lower media sequence than a moment ago),
  * which is what a replay looks like from here. At most one line a minute per channel, with the server that answered. */
+const short = (a) => (a.length > 6 ? [...a.slice(0, 3), '…', ...a.slice(-3)] : a).map((x) => String(x).slice(-24)).join(' ') + ` (${a.length})`;
 const listSeen = new Map(); // "kind|provider|channel" -> { n, idx: Map(name -> order), last, seq, said }
 function trackList(meta, names, lines, now) {
   const key = `${meta.k || 'v'}|${meta.p}|${meta.s}`;
@@ -1099,12 +1100,12 @@ function trackList(meta, names, lines, now) {
   if (!st.idx.has(last)) st.idx.set(last, ++st.n);
   else if (st.last && last !== st.last && st.idx.get(last) < st.idx.get(st.last)) why = (why ? why + '; ' : '') + `newest segment went back to ${last} (was ${st.last})`;
   if (st.idx.size > 600) { const keep = [...st.idx.entries()].sort((a, b) => b[1] - a[1]).slice(0, 300); st.idx = new Map(keep); }
-  st.last = last; if (seq >= 0) st.seq = seq; st.at = now;
+  const before = st.prev; st.prev = names.slice(); st.last = last; if (seq >= 0) st.seq = seq; st.at = now;
   if (why && now - st.said > 60000) {
     st.said = now;
     const pv = providers.get(meta.p), e = segSrc.get(`${meta.p}|${meta.s}|${last}`);
     let host = '?'; try { host = new URL(e && e.urls[0]).host; } catch { /* unknown */ }
-    console.log(`[zibbit] ${new Date(now).toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} playlist went backward (${why}; newest segment from ${host}; ${meta.k === 'ingest' ? 'rewind buffer feed' : 'direct'})`);
+    console.log(`[zibbit] ${new Date(now).toISOString().replace('T', ' ').slice(0, 19)}Z ${pv ? pv.name : meta.p}: channel ${meta.s} playlist went backward (${why}; newest segment from ${host}; ${meta.k === 'ingest' ? 'rewind buffer feed' : 'direct'}); list was ${before ? short(before) : '?'}, now ${short(names)}`);
   }
 }
 const multiNoted = new Map();
